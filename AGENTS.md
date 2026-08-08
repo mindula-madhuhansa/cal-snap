@@ -12,7 +12,21 @@ An AI calorie counter for everyday people losing weight: snap a meal, get its nu
 
 ## Commands
 
-`<to be filled by /develop after the scaffold exists>`
+Node 22 (see `.nvmrc`), npm, run from the repo root.
+
+| Command             | What it does                                |
+| ------------------- | ------------------------------------------- |
+| `npm install`       | Install dependencies                        |
+| `npm start`         | Start the Expo dev server                   |
+| `npm run ios`       | Start it and open an iOS simulator          |
+| `npm run android`   | Start it and open an Android emulator       |
+| `npm run lint`      | ESLint via `expo lint`                      |
+| `npm run format`    | Check formatting (`format:write` to fix it) |
+| `npm run typecheck` | `tsc --noEmit`                              |
+| `npx expo-doctor`   | Check dependencies match the SDK            |
+
+Lint, format, and typecheck also run automatically before every commit, and on
+every push through GitHub Actions.
 
 ## Specs
 

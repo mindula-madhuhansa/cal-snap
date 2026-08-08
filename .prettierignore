@@ -1,0 +1,12 @@
+node_modules
+.expo
+dist
+android
+ios
+package-lock.json
+
+# Vendored agent skills and the imported design, both kept byte for byte as
+# they arrived. Formatting them would churn files we do not own.
+.agents
+.claude
+docs

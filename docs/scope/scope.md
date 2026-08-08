@@ -35,14 +35,14 @@ Nothing here is a feature a user sees, and all of it is ground the releases stan
 Choose the mobile stack, the backend, and how the phone talks to it, then scaffold a project that runs on both iOS and Android. Every later feature rests on this one, and the AI scan and cloud sync both depend on the shape it sets.
 **Done when:** the decision is recorded in a spec, and an empty app boots on an iOS simulator and an Android emulator and passes a build.
 - [x] Decide the stack (spec): `/architect stack & architecture`
-- [ ] Scaffold from the decision: `/develop stack & architecture`
-   - [ ] Expo project, TypeScript strict, Expo Router tabs (AC-1..3)
-   - [ ] Classical theme module and fonts, from `docs/design/classical.css` (AC-4)
-   - [ ] Local SQLite that opens, migrates, and survives a restart (AC-5)
-   - [ ] Lint, format, pre-commit hooks, config validation, and the GitHub Actions check (AC-6..8)
+- [x] Scaffold from the decision: `/develop stack & architecture`
+   - [x] Expo project, TypeScript strict, Expo Router tabs (AC-1..3)
+   - [x] Classical theme module and fonts, from `docs/design/classical.css` (AC-4)
+   - [x] Local SQLite that opens, migrates, and survives a restart (AC-5)
+   - [x] Lint, format, pre-commit hooks, config validation, and the GitHub Actions check (AC-6..8)
 - [ ] Verify it: `/check verify stack & architecture`
 - [ ] Test it: `/test stack & architecture`
-Spec [0001](../specs/0001-stack-architecture/index.md) · code (filled by /develop)
+Spec [0001](../specs/0001-stack-architecture/index.md) · code in `src/` (`app/`, `design-system/`, `db/`, `config/`, `startup/`)
 
 ### 2. Coding standards & tooling
 Capture the conventions from the real scaffolded project, then install lint, formatting, type strictness, and pre commit checks so every later file follows the same rules.
