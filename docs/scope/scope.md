@@ -11,7 +11,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 
 | # | Feature | Phase | Status |
 |---|---------|-------|--------|
-| 1 | Stack & architecture | Foundation | planned |
+| 1 | Stack & architecture | Foundation | in-progress |
 | 2 | Coding standards & tooling | Foundation | planned |
 | 3 | Data model | Foundation | planned |
 | 4 | Design system & UI foundation | Foundation | planned |
@@ -21,7 +21,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 8 | Review & save a meal | Release 1 | planned |
 | 9 | Today screen | Release 1 | planned |
 | 10 | Privacy, terms & account deletion | Release 1 | planned |
-| 11 | Analytics & error monitoring | Release 1 | planned |
+| 11 | Analytics & error monitoring | Release 1 | dropped |
 | 12 | Log exercise burn | Release 2 | planned |
 | 13 | Meal history | Release 2 | planned |
 | 14 | Daily reminders | Release 3 | planned |
@@ -31,11 +31,18 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 
 Nothing here is a feature a user sees, and all of it is ground the releases stand on. Build it once, cheaply, in this order.
 
-### 1. Stack & architecture · needs a decision
+### 1. Stack & architecture · in-progress
 Choose the mobile stack, the backend, and how the phone talks to it, then scaffold a project that runs on both iOS and Android. Every later feature rests on this one, and the AI scan and cloud sync both depend on the shape it sets.
 **Done when:** the decision is recorded in a spec, and an empty app boots on an iOS simulator and an Android emulator and passes a build.
-- [ ] Decide the stack (spec): `/architect stack & architecture`
+- [x] Decide the stack (spec): `/architect stack & architecture`
 - [ ] Scaffold from the decision: `/develop stack & architecture`
+   - [ ] Expo project, TypeScript strict, Expo Router tabs (AC-1..3)
+   - [ ] Classical theme module and fonts, from `docs/design/classical.css` (AC-4)
+   - [ ] Local SQLite that opens, migrates, and survives a restart (AC-5)
+   - [ ] Lint, format, pre-commit hooks, config validation, and the GitHub Actions check (AC-6..8)
+- [ ] Verify it: `/check verify stack & architecture`
+- [ ] Test it: `/test stack & architecture`
+Spec [0001](../specs/0001-stack-architecture/index.md) · code (filled by /develop)
 
 ### 2. Coding standards & tooling
 Capture the conventions from the real scaffolded project, then install lint, formatting, type strictness, and pre commit checks so every later file follows the same rules.
@@ -87,10 +94,10 @@ A privacy policy and terms, a clear explanation of what is collected before you 
 **Done when:** policy and terms are reachable from inside the app and from the store listing; consent is explicit before health details are collected; deleting the account removes the user and all their meals, and is confirmed to the person.
 - [ ] Build it: `/develop privacy, terms & account deletion`
 
-### 11. Analytics & error monitoring · needs a decision
-Know how many people finish setup, how many scans succeed, how often people come back in week two, and when the app crashes. Your success measure is week two retention, and you cannot measure that after the fact, so it ships with release 1.
-**Done when:** setup completion, first scan, meals logged, and return visits are tracked; crashes and failed scans are reported with enough context to fix them; what is collected matches what the privacy policy says.
-- [ ] Design it (spec): `/architect analytics & error monitoring`
+### 11. Analytics & error monitoring · dropped
+De-scoped on 8 August 2026: you decided you do not want product analytics or error monitoring in this product at all. Kept here for history rather than deleted, so the plan stays honest about what changed.
+
+One knock on effect worth remembering: the success measure at the top of this scope, people still logging in week two, is now something you judge by using the app and talking to people, not something the app reports to you.
 
 ## Release 2: Calories in and out
 
