@@ -1,42 +1,57 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View } from 'react-native';
 
-import { colors, space, type } from '@/design-system/theme';
+import { AppText } from '@/design-system/components/app-text';
+import { Divider } from '@/design-system/components/divider';
+import { EmptyState } from '@/design-system/components/empty-state';
+import { ListRow } from '@/design-system/components/list-row';
+import { Screen } from '@/design-system/components/screen';
+import { colors } from '@/design-system/theme';
 
 /**
- * The second tab exists to prove that adding a file here adds a tab (spec
- * 0001, AC-3). The real settings screen arrives with the features that need
- * it: the daily target (feature 6), privacy and account deletion (feature 10).
+ * The second tab proves that adding a file here adds a tab (spec 0001, AC-3),
+ * and is now built from the design system like every other screen (spec 0003).
+ *
+ * The real settings screen arrives with the features that need it: the daily
+ * target (feature 6), the account (feature 5), privacy and account deletion
+ * (feature 10). Until then it says so plainly rather than showing controls
+ * that do nothing.
  */
-export default function SettingsScreen() {
-  const insets = useSafeAreaInsets();
 
+/** What will live here, listed so the screen reads as a plan rather than a gap. */
+const COMING = [
+  { key: 'target', title: 'Your daily target', subtitle: 'Arrives with onboarding' },
+  { key: 'account', title: 'Account and sign in', subtitle: 'Arrives with cloud sync' },
+  { key: 'privacy', title: 'Privacy, terms and deletion', subtitle: 'Arrives before release' },
+] as const;
+
+export default function SettingsScreen() {
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + space[8] }]}>
-      <Text accessibilityRole="header" style={styles.title}>
+    <Screen>
+      <AppText variant="h1" heading>
         Settings
-      </Text>
-      <Text style={styles.body}>
-        Nothing to change yet. Your target, your account, and privacy live here once those features
-        are built.
-      </Text>
-    </View>
+      </AppText>
+
+      <EmptyState
+        title="Nothing to change yet"
+        body="There is no account, no target, and no data to manage until those features are built. Anything you could set here would be pretending."
+      />
+
+      <Divider />
+
+      <AppText variant="kicker" color={colors.accentText} uppercase>
+        Coming here
+      </AppText>
+
+      <View>
+        {COMING.map((row, index) => (
+          <ListRow
+            key={row.key}
+            title={row.title}
+            subtitle={row.subtitle}
+            last={index === COMING.length - 1}
+          />
+        ))}
+      </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: space[6],
-    gap: space[3],
-  },
-  title: {
-    ...type.h2,
-    color: colors.text,
-  },
-  body: {
-    ...type.body,
-    color: colors.textMuted,
-  },
-});

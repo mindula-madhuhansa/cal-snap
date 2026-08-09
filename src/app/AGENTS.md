@@ -9,12 +9,12 @@ any screen renders.
 
 ## Key files
 
-| File                  | Owns                                                                  |
-| --------------------- | --------------------------------------------------------------------- |
-| `_layout.tsx`         | Startup gating, the splash screen, providers, and the root stack      |
-| `(tabs)/_layout.tsx`  | The tab bar and its theming                                           |
-| `(tabs)/index.tsx`    | The Today tab (scaffold placeholder; the real one is scope feature 9) |
-| `(tabs)/settings.tsx` | The Settings tab (scaffold placeholder)                               |
+| File                  | Owns                                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `_layout.tsx`         | Startup gating, the splash screen, providers, and the root stack                                                            |
+| `(tabs)/_layout.tsx`  | The tab bar and its theming                                                                                                 |
+| `(tabs)/index.tsx`    | The Today tab, built from the design system with labelled sample data; the real one, reading a real day, is scope feature 9 |
+| `(tabs)/settings.tsx` | The Settings tab (scaffold placeholder)                                                                                     |
 
 ## Conventions
 
@@ -26,7 +26,11 @@ any screen renders.
   else in `src/`, named exports still.
 - Typed routes are on (`experiments.typedRoutes` in `app.config.ts`), so route strings are checked.
   Regenerate types by running the dev server if a new route is not recognised.
-- Screens read every colour, space, and type step from `@/design-system/theme`. No literal values.
+- Screens build from `@/design-system/components` (`Screen`, `AppText`, `Button`, and the rest),
+  never from React Native's `Text`, `Pressable`, `TouchableOpacity`, or `TextInput` directly;
+  `eslint.config.js` fails the build on a direct import of any of those four inside `src/app/**`.
+  No literal colour, space, or type value either; everything resolves through the components to
+  `@/design-system/theme`.
 - A screen that can fail at startup shows `StartupNotice` with an honest message rather than
   hanging on the splash screen.
 
@@ -40,10 +44,14 @@ any screen renders.
 - The splash screen is held manually (`preventAutoHideAsync`, then `hideAsync` once fonts and the
   database have both settled). Any new startup gate has to join that `settled` check, or the splash
   will hide too early.
-- Safe area insets are applied per screen with `useSafeAreaInsets`, not by a wrapper, because the
-  design's screens scroll under the status bar.
-- The tab bar hides icons for now (`tabBarIconStyle: { display: 'none' }`). The finished bar with
-  the design's icons is scope feature 4.
+- Safe area insets are applied by the `Screen` component (`@/design-system/components/screen`),
+  not per screen with a local `useSafeAreaInsets` call. `Screen` applies the top inset as content
+  padding rather than a margin, so content still scrolls under the status bar the way the design
+  draws it.
+- The tab bar is typographic, not iconographic: `(tabs)/_layout.tsx` hands a custom `tabBar` prop
+  (`TabBar` from `@/design-system/components/tab-bar`) to `expo-router/js-tabs`, which draws a gold
+  hairline above the active tab's label. Adding a `Tabs.Screen` entry adds a tab with no relayout
+  work.
 
 ## Agent skills
 
@@ -56,5 +64,7 @@ any screen renders.
 
 - [0001. Stack and architecture](../../docs/specs/0001-stack-architecture/index.md), AC-1, AC-3,
   and AC-4.
+- [0003. Design system and UI foundation](../../docs/specs/0003-design-system-ui-foundation/index.md),
+  the typographic tab bar (AC-10) and the Today tab rebuilt from the component set (AC-15).
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._

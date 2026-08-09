@@ -14,7 +14,9 @@ type StartupNoticeProps = {
  * splash screen forever.
  *
  * It deliberately uses no custom font, because a font failure is one of the
- * things it has to be able to report.
+ * things it has to be able to report. That is also why it is the one screen
+ * built from React Native's `Text` rather than from `AppText`: going through
+ * the design system would apply a font family this screen cannot rely on.
  */
 export const StartupNotice = ({ title, detail }: StartupNoticeProps) => (
   <View style={styles.container}>
@@ -43,7 +45,10 @@ const styles = StyleSheet.create({
   detail: {
     fontSize: type.body.fontSize,
     lineHeight: type.body.lineHeight,
-    color: colors.textMuted,
+    // `textSubtle` (5.79), not `textMuted` (3.63): this is 15 point body, so
+    // it owes 4.5:1, and of all the screens in the app this is the one that
+    // has to stay readable (spec 0003, AC-2).
+    color: colors.textSubtle,
     textAlign: 'center',
   },
 });

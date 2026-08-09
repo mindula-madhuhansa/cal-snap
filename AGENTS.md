@@ -6,11 +6,11 @@ An AI calorie counter for everyday people losing weight: snap a meal, get its nu
 
 - **Language / Runtime**: TypeScript strict, Node 22, React 19.2 on React Native 0.85
 - **Framework**: Expo SDK 56 (New Architecture), with Expo Router for file based routing
-- **Key dependencies**: `expo-sqlite` (the local first store), `expo-crypto` (device randomness for identifiers), `zod` (configuration validation), `@expo-google-fonts` (Cormorant Garamond, Lora), `react-native-reanimated`
+- **Key dependencies**: `expo-sqlite` (the local first store), `expo-crypto` (device randomness for identifiers), `zod` (configuration validation), `@expo-google-fonts` (Cormorant Garamond, Lora), `react-native-reanimated`, `@expo/vector-icons` (the Feather set, behind the design system's `Icon`), `expo-haptics` (the shared feedback helper)
 - **Styling**: a typed theme module plus React Native `StyleSheet`. No styling library, one light theme, no web target
 - **Package manager**: npm
-- **Partly wired**: Supabase Postgres is live (project `Cal Snap`), with the spec 0002 schema applied and row level security on every table. Supabase auth, edge functions, and sync arrive with scope feature 5.
-- **Decided but not wired yet**: Claude Sonnet 5 for the vision scan behind an edge function, EAS for build and release
+- **Partly wired**: Supabase Postgres is live (project `Cal Snap`), with the spec 0002 schema applied and row level security on every table. Supabase auth, edge functions, and sync arrive with scope feature 5. EAS development builds are wired (`eas.json`, `eas-cli`, the project linked in `app.config.ts`'s `extra.eas.projectId`); production builds and store submission are not yet.
+- **Decided but not wired yet**: Claude Sonnet 5 for the vision scan behind an edge function
 
 Mirrors spec [0001](docs/specs/0001-stack-architecture/index.md), which is the source of truth for this section.
 
@@ -36,6 +36,12 @@ Node 22 (see `.nvmrc`), npm, run from the repo root.
 
 `npm run gen:supabase-migration` rewrites `supabase/migrations/` from the schema
 declarations. It generates, it does not check, so it is not part of the gate.
+
+`package.json`'s `overrides.eas-cli.typescript` pins `eas-cli`'s own bundled TypeScript to `5.9.2`.
+Without it, `eas build`/`eas init` crash reading `app.config.ts`: `eas-cli`'s `@expo/require-utils`
+treats TypeScript as an optional peer, and npm's `typescript@latest` is now a `7.x` whose API shape
+it cannot fully guard against. This is unrelated to the project's own `typescript@~6.0.3`, which
+this override does not touch.
 
 Lint, format, and typecheck run automatically before every commit. GitHub Actions
 runs those three plus the test suite on every push and pull request.
