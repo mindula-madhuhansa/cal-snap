@@ -1,7 +1,7 @@
 # 0003. Design system and UI foundation for CalSnap
 
 **Date**: 2026-08-09
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 

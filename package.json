@@ -26,6 +26,7 @@
     "expo": "~56.0.19",
     "expo-constants": "~56.0.23",
     "expo-crypto": "~56.0.4",
+    "expo-dev-client": "~56.0.24",
     "expo-font": "~56.0.7",
     "expo-haptics": "~56.0.3",
     "expo-linking": "~56.0.16",
@@ -46,6 +47,7 @@
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
+    "eas-cli": "latest",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~56.0.4",
     "eslint-config-prettier": "^10.1.8",
@@ -57,6 +59,9 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "eas-cli": {
+      "typescript": "5.9.2"
+    }
   }
 }

@@ -11,6 +11,9 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  */
 const extra = {
   appEnv: process.env.EXPO_PUBLIC_APP_ENV,
+  eas: {
+    projectId: '04eafa92-d566-463e-8f26-df88822e4ad6',
+  },
 } as const;
 
 /**
@@ -26,6 +29,7 @@ const PAPER = '#f3f2f2';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
+  owner: 'kdmindulamc',
   name: 'CalSnap',
   slug: 'calsnap',
   version: '1.0.0',
