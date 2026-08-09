@@ -35,13 +35,19 @@ it rather than sitting in front of it. There is no ORM and no migration library.
   the statement. That value is only ever a migration's own integer, never anything from outside the
   app. Never interpolate anything else.
 - `openDatabase` is safe to call on every launch: an up to date database applies nothing.
-- The product tables (user, profile, meal, exercise entry, weight entry) are deliberately not
-  invented here. They are scope feature 3's decision. Migration 1 only stands the database up with
-  an `app_meta` table.
+- Migration 1 stands the database up with an `app_meta` table. Migration 2 creates the six product
+  tables from spec 0002, and its SQL is **generated** from the declarations in `src/data/schema/`,
+  not written here. `migrations.ts` imports it as `coreDataModelSql`.
+- Because migration 2 is generated and has shipped, editing a table declaration it covers would
+  retroactively change what a phone already ran. `CORE_DATA_MODEL_FINGERPRINT` in
+  `src/data/local/migrations.ts` guards that, and `npm test` fails if it moves. The fix is always
+  migration 3, never a new fingerprint. See [src/data/AGENTS.md](../data/AGENTS.md).
 
 ## Related specs
 
 - [0001. Stack and architecture](../../docs/specs/0001-stack-architecture/index.md), AC-5 and the
   SQLite migrations scaffold decision.
+- [0002. Core data model](../../docs/specs/0002-data-model/index.md), which owns migration 2 and
+  everything in it.
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._
