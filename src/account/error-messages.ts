@@ -3,6 +3,11 @@ import { devWarn } from '@/config/dev-warning';
 /**
  * Turning a failure into a sentence a person can act on (spec 0004, AC-12).
  *
+ * Email only. The cancellation handling that used to live here existed for
+ * the Google and Apple sheets, which were dropped on 9 August 2026; nothing
+ * in an email flow can be "cancelled" without the person simply not pressing
+ * a button, so it went with them.
+ *
  * No provider error string ever reaches the screen. Clerk's own messages are
  * written for developers ("Identifier is invalid"), they leak internal words,
  * and they change without notice, so every one the app can hit is mapped here
@@ -106,11 +111,6 @@ const BY_CODE: Readonly<Record<string, FailureMessage>> = {
     message: 'You were signed out. Your meals are safe on this phone. Please sign in again.',
     retryable: false,
   },
-  /** The person backed out of the Google or Apple sheet. Not a failure. */
-  sign_in_cancelled: {
-    message: '',
-    retryable: true,
-  },
 };
 
 const UNKNOWN: FailureMessage = {
@@ -118,24 +118,8 @@ const UNKNOWN: FailureMessage = {
   retryable: true,
 };
 
-/** The codes Clerk uses when a person dismisses a native sign in sheet. */
-const CANCELLED_CODES: readonly string[] = [
-  'sign_in_cancelled',
-  'user_cancelled',
-  'oauth_access_denied',
-  'ERR_REQUEST_CANCELED',
-];
-
-/**
- * Whether the person simply backed out. Cancelling is not an error and must
- * show nothing at all: an error message after someone deliberately closed a
- * sheet reads as a bug (AC-12).
- */
-export const isCancellation = (code: string): boolean => CANCELLED_CODES.includes(code);
-
 /** The sentence for a Clerk error code. */
-export const messageForCode = (code: string): FailureMessage =>
-  BY_CODE[code] ?? (isCancellation(code) ? { message: '', retryable: true } : UNKNOWN);
+export const messageForCode = (code: string): FailureMessage => BY_CODE[code] ?? UNKNOWN;
 
 /**
  * The shape Clerk's API errors arrive in. Narrowed here rather than imported,
@@ -177,7 +161,6 @@ export const failureMessage = (error: unknown): FailureMessage => {
   const code = clerkError.errors?.[0]?.code ?? clerkError.code;
 
   if (code !== undefined && code !== '') {
-    if (isCancellation(code)) return { message: '', retryable: true };
     const known = BY_CODE[code];
     if (known !== undefined) return known;
   }

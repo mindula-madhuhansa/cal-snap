@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   failureMessage,
-  isCancellation,
   messageForCode,
   networkFailureMessage,
   unknownFailureMessage,
@@ -40,12 +39,13 @@ describe('failureMessage', () => {
     expect(failureMessage({ message: 'Failed to fetch' })).toEqual(networkFailureMessage);
   });
 
-  // covers: AC-12. Cancelling the Google sheet is not a failure, and showing
-  // anything at all after it reads as a bug.
-  it('says nothing at all when the person backed out of a native sheet', () => {
-    for (const code of ['sign_in_cancelled', 'user_cancelled', 'oauth_access_denied']) {
-      expect(failureMessage({ errors: [{ code }] }).message).toBe('');
-    }
+  // covers: AC-1. The instance can demand a field this screen never collects
+  // (a required password, most often). The email is verified by then, so the
+  // sentence has to say the account is the problem and the person is not.
+  it('names a blocked sign up instead of hiding it behind "something went wrong"', () => {
+    const { message } = messageForCode('sign_up_incomplete');
+    expect(message).not.toBe(unknownFailureMessage.message);
+    expect(message).toContain('not yours');
   });
 
   // covers: AC-13. The session ending is the one message that has to reassure
@@ -75,12 +75,5 @@ describe('failureMessage', () => {
     for (const junk of [undefined, null, 'a string', 42, {}, []]) {
       expect(failureMessage(junk).message.length).toBeGreaterThan(0);
     }
-  });
-});
-
-describe('isCancellation', () => {
-  it('knows a dismissal from a refusal', () => {
-    expect(isCancellation('user_cancelled')).toBe(true);
-    expect(isCancellation('form_password_incorrect')).toBe(false);
   });
 });

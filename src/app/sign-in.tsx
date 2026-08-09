@@ -1,82 +1,41 @@
-import { useSignInWithApple } from '@clerk/expo/apple';
-import { useSignInWithGoogle } from '@clerk/expo/google';
 import { useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { failureMessage } from '@/account/error-messages';
 import { useSignInOrUp } from '@/account/use-sign-in-or-up';
 import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
 import { CaptchaMount } from '@/design-system/components/captcha-mount';
-import { Divider } from '@/design-system/components/divider';
 import { Field } from '@/design-system/components/field';
 import { Screen } from '@/design-system/components/screen';
 import { TextInput } from '@/design-system/components/text-input';
 import { colors, space } from '@/design-system/theme';
 
 /**
- * The door (spec 0004, AC-1, AC-2, AC-3, AC-5, AC-16).
+ * The door (spec 0004, AC-1, AC-2, AC-5, AC-16).
  *
  * One screen, one email field. Nobody has to decide up front whether they are
  * signing in or signing up, because the app can work that out and asking is
  * just a question with a wrong answer in it.
+ *
+ * **Email only.** Spec 0004 AC-3 also asked for native Google and Sign in
+ * with Apple, and they were dropped on 9 August 2026: native Google needs
+ * Google Cloud OAuth credentials and a registered signing fingerprint, which
+ * is real setup for a way in that the emailed code already covers. Dropping
+ * both rather than only Apple also keeps the App Store's third party sign in
+ * rule from applying at all. AC-3 is owed an amendment in the spec.
  */
 
 /** Six digits, so the field can be sized and the keyboard chosen for it. */
 const CODE_LENGTH = 6;
-
-/** What both native sheets hand back. Shared, because they are identical. */
-type SocialResult = {
-  readonly createdSessionId: string | null;
-  readonly setActive?: (params: { readonly session: string }) => Promise<unknown>;
-};
 
 export default function SignInScreen() {
   const flow = useSignInOrUp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [socialError, setSocialError] = useState('');
-
-  const { startGoogleAuthenticationFlow } = useSignInWithGoogle();
-  const { startAppleAuthenticationFlow } = useSignInWithApple();
 
   const busy = flow.busy;
-  // One error line, whichever half produced it. Two separate slots would let
-  // a stale social error sit under a fresh password error.
-  const error = flow.error !== '' ? flow.error : socialError;
-
-  /**
-   * Runs a native sign in sheet and, crucially, activates the session it
-   * produces.
-   *
-   * Unlike the email flows, these do **not** end in `finalize()`. They hand
-   * back a `createdSessionId` plus a `setActive`, and the session does not
-   * exist until `setActive` is called. Awaiting the flow and stopping there
-   * looks like success and leaves the person exactly where they started, with
-   * no error to explain it.
-   */
-  const runSocial = (start: () => Promise<SocialResult>) => (): void => {
-    setSocialError('');
-    void (async () => {
-      try {
-        const { createdSessionId, setActive } = await start();
-
-        if (createdSessionId !== null && setActive !== undefined) {
-          await setActive({ session: createdSessionId });
-          return;
-        }
-
-        // No session and no throw means the sheet closed without completing,
-        // which is a cancellation in everything but name.
-        setSocialError('');
-      } catch (thrown) {
-        // A cancelled sheet maps to an empty message on purpose: the person
-        // closed it deliberately, and an error after that reads as a bug.
-        setSocialError(failureMessage(thrown).message);
-      }
-    })();
-  };
+  const error = flow.error;
 
   return (
     <Screen testID="sign-in-screen">
@@ -213,32 +172,6 @@ export default function SignInScreen() {
         </View>
       ) : undefined}
 
-      {flow.step.kind === 'email' ? (
-        <View style={styles.social}>
-          <Divider />
-          <AppText variant="caption" color={colors.textSubtle} align="center">
-            or
-          </AppText>
-          <Button
-            label="Continue with Google"
-            onPress={runSocial(startGoogleAuthenticationFlow)}
-            fullWidth
-            disabled={busy}
-            testID="sign-in-google"
-          />
-          {/* Sign in with Apple is offered on iOS wherever Google is (AC-3). */}
-          {Platform.OS === 'ios' ? (
-            <Button
-              label="Continue with Apple"
-              onPress={runSocial(startAppleAuthenticationFlow)}
-              fullWidth
-              disabled={busy}
-              testID="sign-in-apple"
-            />
-          ) : undefined}
-        </View>
-      ) : undefined}
-
       {/* Clerk's bot protection attaches here. Draws nothing (AC-1). */}
       <CaptchaMount />
     </Screen>
@@ -252,10 +185,6 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: space[3],
-  },
-  social: {
-    gap: space[3],
-    paddingTop: space[4],
   },
   error: {
     borderLeftWidth: StyleSheet.hairlineWidth,

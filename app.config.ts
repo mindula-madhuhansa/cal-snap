@@ -69,11 +69,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Clerk's native sign in needs native code, so this feature can only run
     // on a development build, never in Expo Go (spec 0004, Consequences).
     '@clerk/expo',
-    // Native Google sign in moved out of `@clerk/expo` in its version 4:
-    // `@clerk/expo/google` is now a stub that throws unless this package and
-    // its plugin are present. Spec 0004 AC-3 asks for the native sheet, not
-    // the browser flow, so this is required rather than optional.
-    '@clerk/expo-google-signin',
     // What Clerk's `tokenCache` stores the session token in: the iOS Keychain
     // and Android storage encrypted by the Keystore (spec 0004, security
     // model). App code never touches it directly, but the native module has
