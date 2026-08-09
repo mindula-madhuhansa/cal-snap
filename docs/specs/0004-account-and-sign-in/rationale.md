@@ -2,6 +2,11 @@
 
 The build spec is [index.md](index.md). This file is the decision record: why Clerk, what else was weighed, and what it is grounded in.
 
+> **Amended 9 August 2026, after the build began.** The reasoning below is left as it was written, because it is the record of a decision made with the information available then. Two things it says did not survive contact with the build, and you should read it knowing them:
+>
+> 1. **Native Google and Apple sign in were dropped** (AC-3 withdrawn; see Consequences in [index.md](index.md)). They appear below as a real advantage of Clerk over Supabase Auth, and that argument was honestly made. It is now a smaller advantage than it reads: `@clerk/expo` version 4 moved native Google into a separate package needing Google Cloud OAuth credentials and a registered signing fingerprint, which is more assembly than "it comes with it" implies. The Clerk decision still stands on the token cache, the refresh handling, and the dashboard configurable factors, all of which held up. It just stands on a narrower base than this file claims.
+> 2. **The fingerprint guard was never reset.** The line below about a guard "this decision knowingly resets once" describes a compromise that turned out to be unnecessary: SQLite renders `uuid` and `text` identically, so the generated migration did not change at all.
+
 ## Context
 
 > ⚠️ Premise note: this decision reverses a recorded one. Spec [0001](../0001-stack-architecture/index.md) chose Supabase Auth, and spec [0002](../0002-data-model/index.md) built its entire isolation model on it: `user_id uuid references auth.users(id) on delete cascade` on six tables, policies reading `(select auth.uid())`, and account deletion happening by foreign key cascade. Choosing Clerk breaks all three, because a Clerk identifier is a string like `user_2abc`, not a UUID, and `auth.uid()` returns nothing for it. The engineer was shown this cost, including the lost delete cascade, and chose Clerk anyway. That is a defensible call and this spec records it as one, but it is a reversal and not an addition.
@@ -91,7 +96,7 @@ On the smaller calls. Custom sign in flows over Clerk's prebuilt `AuthView` foll
 - Spec [0002](../0002-data-model/index.md): the security model, the sync push and pull contract, the per user database file, and the deletion path this decision changes.
 - Spec [0003](../0003-design-system-ui-foundation/index.md) and `docs/design/design.md`: the component set and contrast rules the sign in screen is built from.
 - `src/data/schema/types.ts`, `to-postgres.ts`, `src/data/local/database-file.ts`: the four places the identity change actually lands.
-- `src/data/AGENTS.md`: the never edit a shipped declaration rule, and the fingerprint guard this decision knowingly resets once.
+- `src/data/AGENTS.md`: the never edit a shipped declaration rule, and its fingerprint guard. This decision expected to reset that guard once; in the event it did not have to, and the guard is untouched. See the amendment note at the top.
 - The installed `clerk-expo` skill (`.agents/skills/clerk-expo/`): the current method based hooks, the token cache rule, the bot protection mount point, and the development build requirement for native sign in.
 - The live Supabase project `Cal Snap`: confirmed zero rows across all six tables and zero auth users on 9 August 2026, which is the fact the timing argument rests on.
 

@@ -5,7 +5,7 @@
 
 ## Summary
 
-CalSnap uses Clerk for accounts rather than Supabase Auth, and the app opens on one combined sign in screen that nobody gets past without an account. You sign in with an email plus a password, or an emailed code, or with Google or Apple. Clerk keeps the session in the phone's secure hardware store, so closing the app does not sign you out. The cost of choosing Clerk is that Supabase's built in `auth.uid()` no longer works, so every `user_id` column becomes text holding the Clerk identifier and every access policy reads it from the token instead. This spec also decides the thing spec 0002 left open: sync runs on sign in, when the app comes to the foreground, and a few seconds after each local write.
+CalSnap uses Clerk for accounts rather than Supabase Auth, and the app opens on one combined sign in screen that nobody gets past without an account. You sign in with an email plus a password, or an emailed code. Clerk keeps the session in the phone's secure hardware store, so closing the app does not sign you out. The cost of choosing Clerk is that Supabase's built in `auth.uid()` no longer works, so every `user_id` column becomes text holding the Clerk identifier and every access policy reads it from the token instead. This spec also decides the thing spec 0002 left open: sync runs on sign in, when the app comes to the foreground, and a few seconds after each local write.
 
 ## Requirements
 
@@ -21,7 +21,7 @@ CalSnap uses Clerk for accounts rather than Supabase Auth, and the app opens on 
 
 - **AC-1**: A new person enters an email on the combined screen, receives a six digit code, enters it, and lands in the app signed in. No password is required to sign up and no email confirmation step stands between them and the app.
 - **AC-2**: A returning person with a password is asked for it on the same screen, and can choose "email me a code instead" to get in without it. The code is a sign in method in its own right, so it is also the answer to a forgotten password: nobody is ever locked out. Changing a password is deliberately not in this release (see Follow-up).
-- **AC-3**: Native Google sign in and native Sign in with Apple both complete on a development build and land the person in the app. Sign in with Apple is offered on iOS wherever Google is offered.
+- **AC-3** _(withdrawn on 9 August 2026, during the build)_: originally required native Google sign in and native Sign in with Apple. **Email is now the only way in.** The number is retired rather than reused, so the `covers: AC-N` comments in the test suite and every criterion below still line up. The reasoning is in Consequences, under "Why Google and Apple went".
 - **AC-4**: Closing the app fully and reopening it leaves the person signed in. The splash screen is held until Clerk has answered and the right database file is open, and the app then routes once. A signed in person never sees the sign in screen flash first.
 - **AC-5**: While signed out, no screen other than the combined sign in screen is reachable by any route, including a deep link.
 - **AC-6**: A signed in person with no `profiles` row, or one whose `onboarded_at` is null, is routed to onboarding rather than to Today, on every device they sign in on. The routing decision is never made from a stale local row: the single `profiles` row is pulled before routing on every sign in, so someone who onboarded on another phone is not sent through onboarding twice.
@@ -34,7 +34,7 @@ CalSnap uses Clerk for accounts rather than Supabase Auth, and the app opens on 
 - **AC-12**: A wrong password, an unknown email, a wrong or expired code, and a missing network connection each produce a specific message a person can act on. No raw provider error string reaches the screen, and no failure is silent.
 - **AC-13**: A session that stops being valid while the app is open lets any save already in flight finish into the local file, then returns the person to the sign in screen saying that the session ended and asking them to sign in again. The local file is kept, so nothing unpushed is lost.
 - **AC-14**: The Settings tab shows the signed in email address and a sign out row.
-- **AC-15**: Every Supabase request carries the Clerk session token. The app never establishes a Supabase anonymous session, and the Supabase anonymous key alone never grants access to any row.
+- **AC-15**: Every Supabase request carries the Clerk session token. The app never establishes a Supabase anonymous session, and the Supabase publishable key alone never grants access to any row.
 - **AC-16**: Every screen and state this feature adds is built only from `@/design-system/components`, meets the contrast floor in `docs/design/design.md`, respects the system font size setting, and carries screen reader labels. The password and code fields are marked so the platform password manager and the code autofill both work.
 
 ## Decision
@@ -64,7 +64,11 @@ No new table is created by this feature. Sessions live in Clerk and in the phone
 | SQLite side | `uuid` renders as `TEXT` | unchanged, a Clerk identifier fits with no migration |
 | Day scoped identifiers (UUID version 5 over namespace, `user_id`, `on_date`) | unchanged | unchanged, version 5 hashes a string and a Clerk identifier is a string |
 
-Both databases are regenerated from the single declaration in `src/data/schema/`, so this is four small edits and a regeneration, not hand written SQL. `CORE_DATA_MODEL_FINGERPRINT` is reset deliberately in the same change, with a comment recording why: no phone has ever run migration 2 and the live tables hold zero rows, so there is nothing to migrate and an `alter column type` migration would exist only to undo a decision no user ever met. This is the one sanctioned exception to the rule in `src/data/AGENTS.md`, and it closes the moment real data exists.
+Both databases are regenerated from the single declaration in `src/data/schema/`, so this is four small edits and a regeneration, not hand written SQL.
+
+**`CORE_DATA_MODEL_FINGERPRINT` does not move, and no exception is needed.** This spec first planned to reset it deliberately, as a one time sanctioned weakening of the guard in `src/data/AGENTS.md`. The build proved that unnecessary: SQLite renders both `uuid` and `text` as `TEXT`, and the `auth.users` foreign key was already `postgresOnly`, so migration 2's SQL is byte identical before and after (`e930ebeca7dcf6b28c76dc9c9c90e3fdc081cc59` either way). The phone side genuinely did not change, the guard never fires, and it stays intact. Anyone reading this later should not go looking for a compromise that was never made.
+
+The Postgres side does change, and it holds zero rows, so it is applied as a plain `alter column type` with the policies dropped and recreated around it. Nothing is migrated because there is nothing to migrate.
 
 The email address is held by Clerk and is deliberately not copied into `profiles`. There is one source of truth for it, and health rows carry no contact detail.
 
@@ -110,8 +114,6 @@ There are still no HTTP endpoints in the app. The surface is functions, matching
 | Function | Shape | Key inputs | Key outputs | Auth | Key errors |
 |---|---|---|---|---|---|
 | `useSignInOrUp` | screen hook over Clerk | `email` (required), then `password` or `code` | the active session | none, this is the door | unknown email, wrong password, wrong or expired code, network down |
-| `signInWithGoogle` | native Clerk flow | none | the active session | none | cancelled by the person, no Play services, network down |
-| `signInWithApple` | native Clerk flow | none | the active session | none | cancelled by the person, network down |
 | `getSupabaseClient` | client factory | none | a Supabase client whose `accessToken` returns the Clerk token | Clerk session | no session, token fetch failed |
 | `openSessionDatabase` | local effect | `userId` (required) | the open database, and whether it was newly created | Clerk session | invalid identifier shape, file cannot be opened |
 | `runSync` | push then pull | `reason` (required: `sign-in`, `foreground`, `after-write`, `sign-out`) | rows pushed, rows pulled | Clerk session | network down, token expired, conflict resolved by newest write |
@@ -169,7 +171,9 @@ The one real security regression is deletion. With Supabase Auth, deleting the a
 
 - `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`: the Clerk instance this build talks to. Safe to ship, it is a public identifier.
 - `EXPO_PUBLIC_SUPABASE_URL`: the project endpoint, already reserved in `.env.example`.
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY`: the anonymous key, already reserved. Safe to ship: with Clerk it grants nothing on its own, because every policy now requires a valid Clerk token.
+- `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: the `sb_publishable_` key. Safe to ship: with Clerk it grants nothing on its own, because every policy now requires a valid Clerk token.
+
+  This replaces the legacy `anon` key the spec first named, decided during the build on 9 August 2026. The legacy key is a signed JWT carrying an `anon` role, which is the shape this design is trying to get rid of: it rotates only with the project's whole JWT secret, and it sits in the codebase looking exactly like a session token next to a real one. The publishable key is an opaque identifier that rotates on its own. The guarantee is unchanged, there is just less to mistake.
 
 All three are validated by `src/config/env.ts` at startup and fail loudly, per the project rule.
 
@@ -177,7 +181,7 @@ All three are validated by `src/config/env.ts` at startup and fail loudly, per t
 
 - Clerk: enable the Native API (Dashboard, Native applications). `@clerk/expo` cannot work without it.
 - Clerk: enable email address as the identifier, with both password and email code strategies.
-- Clerk: configure the Google and Apple providers, including the Apple service identifier and key.
+- Clerk: set the password attribute to **optional**, not required. Enabled and required are different settings, and Clerk defaults to required. Required contradicts AC-1 directly: the sign up path collects an email and a code and nothing else, so a required password leaves the sign up at `missing_requirements` and `finalize()` cannot complete. The person sees their email verified and then a failure they cannot act on.
 - Clerk: add `"role": "authenticated"` as a custom claim on the session token. Without it Supabase treats the request as unauthenticated and every policy denies.
 - Supabase: register Clerk as a third party auth provider, giving it the Clerk domain.
 
@@ -188,7 +192,7 @@ All three are validated by `src/config/env.ts` at startup and fail loudly, per t
 - Happy path: a meal saved on device A appears on device B after B comes to the foreground, verifies **AC-10**.
 - Restore: signing in on a device with no local file holds the restoring screen, then opens on Today with every past meal present and correct totals, verifies **AC-9**.
 - Isolation: account B signs in on a phone where account A is still stored, and no row, total, or streak belonging to A is visible or pushable, verifies **AC-7**, **AC-8**.
-- Auth and permission: a Supabase request carrying only the anonymous key, with no Clerk token, returns zero rows from every table, verifies **AC-7**, **AC-15**.
+- Auth and permission: a Supabase request carrying only the publishable key, with no Clerk token, returns zero rows from every table, verifies **AC-7**, **AC-15**.
 - Failure case: sign out with three unpushed meals (twelve dirty rows between them) and the network off says **three meals**, not twelve rows, verifies **AC-11**.
 - Failure case: signing out anyway with the network off shows the sign in screen immediately with no diary reachable, then removes the file on the next foreground once the network returns, without anyone signing in, verifies **AC-11b**.
 - Failure case: a phone left draining with no network for seven days removes the file anyway, verifies **AC-11b**.
@@ -196,7 +200,7 @@ All three are validated by `src/config/env.ts` at startup and fail loudly, per t
 - Failure case: the startup `profiles` pull fails with no network, and the person is let in against their local row with the offline state shown, rather than being sent through onboarding again, verifies **AC-6**.
 - Failure case: a revoked session mid save lets the save land locally, then returns to sign in with the reason shown and nothing lost, verifies **AC-13**.
 - Failure case: a wrong password, then a wrong code, then airplane mode each produce a distinct written message, verifies **AC-12**.
-- Failure case: cancelling the Google sheet returns to the sign in screen intact, with no error shown and no half signed in state, verifies **AC-12**.
+- Failure case: signing up on an instance whose password attribute is required stops with a written sentence saying the account could not be finished and that this is not the person's fault, never "something went wrong", verifies **AC-12**.
 - Accessibility: the sign in screen at the largest system font size shows every field and both buttons without clipping, and a screen reader announces each field and every error, verifies **AC-16**.
 
 ## Build plan
@@ -210,9 +214,9 @@ Ordered by the project's **Skateboard** approach: the first slice is the smalles
 3. Install `@clerk/expo` and `@supabase/supabase-js`, add the three variables to `.env.example` and to the schema in `src/config/env.ts`, satisfies **AC-15**.
 4. Complete the Clerk and Supabase dashboard prerequisites listed above, including the `role` claim, satisfies **AC-7**, **AC-15**.
 5. Mount `ClerkProvider` with `tokenCache` from `@clerk/expo/token-cache` in `src/app/_layout.tsx`, and extend the splash gate to the strict sequence in the design section: fonts alongside, then Clerk, then the file, then the `profiles` pull, then route once. Do not join these as parallel settled flags, satisfies **AC-4**, **AC-6**.
-6. Build the combined sign in screen from the design system: wordmark, one line of purpose, email field, continue, a hairline divider, then Google and Apple. Use the current method based hooks (`signIn.password()`, `signIn.emailCode.sendCode()`, `signIn.finalize()`), never the legacy `create` plus `prepareFirstFactor` pattern, satisfies **AC-1**, **AC-2**, **AC-16**.
+6. Build the combined sign in screen from the design system: wordmark, one line of purpose, email field, continue, then the password or code step. Use the current method based hooks (`signIn.password()`, `signIn.emailCode.sendCode()`, `signIn.finalize()`), never the legacy `create` plus `prepareFirstFactor` pattern. Note that sign up is not symmetrical with sign in in `@clerk/expo` version 4: it is `signUp.verifications.sendEmailCode()` and `verifyEmailCode()`, with no `emailCode` namespace, satisfies **AC-1**, **AC-2**, **AC-16**.
 7. Add the bot protection mount point the sign up path requires. It needs a raw `View` with `nativeID="clerk-captcha"`, which `eslint.config.js` forbids inside `src/app/**`, so expose it as a small design system component rather than weakening the rule, satisfies **AC-1**.
-8. Wire native Google and Apple through `useSignInWithGoogle` and `useSignInWithApple`, and confirm both on a development build, satisfies **AC-3**.
+8. _(dropped with **AC-3** on 9 August 2026; the number is kept so the tasks below keep their numbers.)_ Was: wire native Google and Apple.
 9. Route by session: signed out reaches only the sign in screen, signed in with no profile or a null `onboarded_at` reaches onboarding, otherwise Today. Route from the pulled `profiles` row, falling back to the local one with the offline state shown when that pull fails, satisfies **AC-5**, **AC-6**.
 10. Widen the identifier check in `databaseNameForUser` to `/^user_[A-Za-z0-9]{20,32}$/`, and open the per user file on sign in, satisfies **AC-8**.
 11. Add `countPendingMeals` beside the existing `countPendingPushes`, counting distinct dirty meals for the sentence a person reads while `countPendingPushes` stays the gate on removing the file, satisfies **AC-11**.
@@ -239,8 +243,8 @@ Ordered by the project's **Skateboard** approach: the first slice is the smalles
 
 **Positive**
 
-- The Expo experience is genuinely better than the alternative. Native Google and Apple flows, a maintained token cache backed by the Keychain and the Keystore, and refresh handled for you are all things you would otherwise have written and got subtly wrong.
-- Sign in methods become dashboard configuration rather than code. Adding passkeys later, which you considered and deferred, is a toggle plus a small screen change.
+- The Expo experience is genuinely better than the alternative. A maintained token cache backed by the Keychain and the Keystore, and refresh handled for you, are both things you would otherwise have written and got subtly wrong.
+- Sign in methods become dashboard configuration rather than code. Adding passkeys later, which you considered and deferred, is a toggle plus a small screen change. The same is true of Google and Apple if they ever come back.
 - Isolation did not move. Postgres still refuses to hand one person another person's diary, which was the property spec 0002 cared most about.
 - The change costs almost nothing today. Zero rows live, nothing on any phone, and one schema declaration to edit. The same change in six months means migrating real diaries.
 - Spec 0002's sync design finally has a trigger, which unblocks the half of feature 3 that was waiting on this feature.
@@ -251,15 +255,22 @@ Ordered by the project's **Skateboard** approach: the first slice is the smalles
 - **Deleting an account no longer happens by itself.** The `auth.users` cascade is gone. Until feature 10 builds the Clerk webhook, deleting a person in Clerk leaves their diary in Postgres, which is a real gap in a health app and is the single most important thing on the Follow-up list.
 - `auth.uid()` is now a trap. Any future policy written from a Supabase example will silently match nothing rather than fail loudly, which is the worst kind of security bug. Nothing in the codebase catches this yet.
 - Clerk is free to ten thousand monthly active users and paid after that, and Supabase bills third party auth users too. Two meters where there was one.
-- Resetting the migration fingerprint deliberately weakens a guard that exists for good reason. It is defensible exactly once, on the facts recorded here, and the comment in the code must say so.
-- Specs 0001 and 0002 are now partly wrong until task 20 amends them, and 0002 is already marked `In Progress` with 238 passing tests, several of which assert `auth.uid()` and will fail until updated.
+- Specs 0001 and 0002 are now partly wrong until task 23 amends them, and 0002 is already marked `In Progress` with tests that assert `auth.uid()` and had to be updated.
+- **Email is the only way in, so email delivery is a single point of failure.** If a person loses access to their inbox they lose access to their diary, and there is no second factor and no other route. Social sign in used to be that route. This is the real cost of dropping AC-3 and it is accepted knowingly: the alternative was the Google Cloud setup below, and the diary is not a bank account.
+
+**Why Google and Apple went** (withdrawn 9 August 2026, during the build)
+
+- Native Google turned out to be more than a toggle. `@clerk/expo` version 4 moved it into a separate `@clerk/expo-google-signin` package with its own config plugin, and `@clerk/expo/google` is a stub that throws without it. On top of that it needs real Google Cloud OAuth credentials on the Clerk instance (the shared development credentials only drive the browser flow) plus the Android signing fingerprint registered.
+- That is a meaningful amount of setup and ongoing key management for a door the emailed code already opens, on a product whose first release is one person logging their own meals.
+- Dropping **both** rather than only Apple is deliberate and is the tidier end state. The App Store rule that forces Sign in with Apple only applies to an app that offers some other third party sign in; offering none takes CalSnap out of its scope entirely, rather than leaving an obligation to satisfy later.
+- Nobody is stranded by this. Anyone who had signed in with Google keeps their account: `email_address` is a first factor with `email_code` verification, so the same person signs in with a code to the same address and lands on the same diary.
 
 **Neutral**
 
-- SQLite is untouched. `uuid` already rendered as `TEXT`, so the phone side needed nothing.
+- SQLite is untouched, and the build confirmed it exactly: `uuid` already rendered as `TEXT`, so migration 2's generated SQL came out byte identical and the fingerprint guard never moved.
 - Day scoped UUID version 5 identifiers keep working, because version 5 hashes a string and a Clerk identifier is one.
 - The email address lives only in Clerk. Any future feature wanting it reads it from Clerk rather than from `profiles`.
-- Native Google and Apple mean this feature can never be tested in Expo Go, only on a development build. You already have one.
+- This feature can never be tested in Expo Go, only on a development build. That was true of native Google and Apple and stays true without them: `@clerk/expo` and its Keychain backed token cache are native code either way. You already have a development build.
 - The draining state is real machinery: a small store outside the database, a foreground effect, and a deadline. It exists because the shared phone case is the reason sign out removes the file at all, and letting "sign out anyway" quietly defeat that would have made the guarantee untrue.
 - Two different counts of unpushed work now exist on purpose. `countPendingMeals` is what a person reads, `countPendingPushes` is what the code gates on. Anyone changing one should read this line before assuming the other is redundant.
 
@@ -272,4 +283,6 @@ Ordered by the project's **Skateboard** approach: the first slice is the smalles
 - [ ] Decide what happens to an account that signs up and never onboards. Clerk will hold a user with no profile row and no diary forever, which is harmless but untidy, and worth a rule before it is thousands of rows.
 - [ ] There is no way to change a password inside the app. This is deliberate for release 1, because an emailed code means nobody is ever locked out, but it is an omission a person will eventually notice. It belongs with a proper account settings screen rather than being bolted onto sign in.
 - [ ] Seven days is a judgement, not a derived number. It is long enough to cover a holiday with no signal and short enough that a borrowed phone does not keep a health record. Revisit it if real usage shows drains failing for longer.
-- [ ] Passkeys were considered and deferred. Revisit once the base flows are proven, since Clerk supports them and they suit a phone first health app well.
+- [ ] Passkeys were considered and deferred. Revisit once the base flows are proven, since Clerk supports them and they suit a phone first health app well. With Google and Apple gone they are now the strongest candidate for a second way in, and they need no Google Cloud setup.
+- [ ] Google and Apple can come back whenever the setup is worth it: install `@clerk/expo-google-signin` with its plugin, add the Google Cloud OAuth credentials and the Android signing fingerprint, and restore the two buttons. If Google returns on iOS, Sign in with Apple has to return with it. Both providers are still enabled on the Clerk instance, so nothing was destroyed, only unused.
+- [ ] Email delivery is now the only way into an account. Worth watching once real people are using it: a bounced or spam filtered code is a locked out person with no fallback, which was not true when social sign in existed.
