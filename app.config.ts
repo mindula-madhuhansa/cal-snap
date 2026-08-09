@@ -69,6 +69,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Clerk's native sign in needs native code, so this feature can only run
     // on a development build, never in Expo Go (spec 0004, Consequences).
     '@clerk/expo',
+    // What Clerk's `tokenCache` stores the session token in: the iOS Keychain
+    // and Android storage encrypted by the Keystore (spec 0004, security
+    // model). App code never touches it directly, but the native module has
+    // to be in the build or `@clerk/expo/token-cache` cannot resolve.
+    'expo-secure-store',
     [
       'expo-splash-screen',
       {
