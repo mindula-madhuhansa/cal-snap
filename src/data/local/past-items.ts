@@ -53,9 +53,15 @@ export type SearchPastItemsQuery = {
  * `meal_items_user_name_lower_idx` index, so a page cannot skip or repeat a
  * row when a new item is inserted mid paging (AC-16).
  *
- * The `MAX(created_at)` with bare columns is SQLite's documented behaviour:
- * the other selected values come from the row that carried the maximum, which
- * is exactly "the most recent numbers for this name".
+ * Picking "the most recent numbers for this name" is done with an explicit
+ * `ROW_NUMBER()` window rather than the `MAX(created_at)` with bare columns
+ * trick. The trick reads more neatly and is real SQLite behaviour, but it
+ * resolves a tie on the maximum **arbitrarily**, and ties are not rare here:
+ * `saveMeal` stamps one `created_at` for a whole meal, so every item in a meal
+ * carries the same instant, and two meals saved in the same millisecond do
+ * too. That made the suggested numbers depend on which row SQLite happened to
+ * pick. Ordering by `(created_at desc, id desc)` makes the answer the same
+ * every time, on every machine.
  */
 export const searchPastItems = async (
   db: SqlDatabase,
@@ -63,21 +69,28 @@ export const searchPastItems = async (
 ): Promise<DataResult<Page<PastItem>>> => {
   const limit = Math.max(1, search.limit ?? DEFAULT_LIMIT);
   const term = `%${search.query.trim().toLowerCase()}%`;
-  const keyset = search.cursor === undefined ? '' : 'HAVING LOWER(name) > ?';
+  const keyset = search.cursor === undefined ? '' : 'AND key > ?';
   const keysetParams: readonly SqlValue[] = search.cursor === undefined ? [] : [search.cursor];
 
   const rows = await db.getAllAsync<PastItemRow>(
-    `SELECT name,
-            LOWER(name) AS key,
-            base_per, base_unit, base_calories,
-            base_protein_g, base_carbs_g, base_fat_g,
-            quantity,
-            MAX(created_at) AS last_used_at
-     FROM meal_items
-     WHERE user_id = ? AND deleted_at IS NULL AND LOWER(name) LIKE ?
-     GROUP BY LOWER(name)
-     ${keyset}
-     ORDER BY LOWER(name) ASC
+    `SELECT name, key, base_per, base_unit, base_calories,
+            base_protein_g, base_carbs_g, base_fat_g, quantity, last_used_at
+     FROM (
+       SELECT name,
+              LOWER(name) AS key,
+              base_per, base_unit, base_calories,
+              base_protein_g, base_carbs_g, base_fat_g,
+              quantity,
+              created_at AS last_used_at,
+              ROW_NUMBER() OVER (
+                PARTITION BY LOWER(name)
+                ORDER BY created_at DESC, id DESC
+              ) AS newest_first
+       FROM meal_items
+       WHERE user_id = ? AND deleted_at IS NULL AND LOWER(name) LIKE ?
+     )
+     WHERE newest_first = 1 ${keyset}
+     ORDER BY key ASC
      LIMIT ?`,
     [search.userId, term, ...keysetParams, limit + 1],
   );

@@ -73,11 +73,63 @@ describe('searchPastItems', () => {
     );
   });
 
-  it('suggests the numbers from the most recent time that item was eaten', async () => {
+  // Recency here means when the row was written, not when the meal was eaten,
+  // which is what spec 0002 says. `saveMeal` reads the wall clock, so the two
+  // rows below are stamped apart explicitly rather than by hoping the two
+  // saves land in different milliseconds.
+  const setCreatedAt = (calories: number, createdAt: string): void => {
+    store.raw
+      .prepare('update meal_items set created_at = ? where base_calories = ?')
+      .run(createdAt, calories);
+  };
+
+  it('suggests the numbers from the most recently recorded time that item was eaten', async () => {
     await log(USER_A, 'Rice', '2026-08-01T12:00:00Z', { baseCalories: 100 });
     await log(USER_A, 'Rice', '2026-08-03T12:00:00Z', { baseCalories: 175 });
+    setCreatedAt(100, '2026-08-01T12:00:00.000Z');
+    setCreatedAt(175, '2026-08-03T12:00:00.000Z');
 
     const rows = rowsOf(await searchPastItems(store.db, { userId: USER_A, query: 'rice' }));
+    expect(rows[0]?.baseCalories).toBe(175);
+  });
+
+  // The regression. `saveMeal` stamps one `created_at` for a whole meal, so
+  // two rows for the same food share an instant exactly whenever they are in
+  // the same meal, and two meals saved in the same millisecond do too. The
+  // earlier `MAX(created_at)` with bare columns let SQLite resolve that tie
+  // arbitrarily, which passed on a slow machine and failed on a fast one.
+  it('breaks a tie on created_at by the newer identifier, never arbitrarily', async () => {
+    await log(USER_A, 'Rice', '2026-08-01T12:00:00Z', { baseCalories: 100 });
+    await log(USER_A, 'Rice', '2026-08-01T13:00:00Z', { baseCalories: 175 });
+    store.raw.prepare("update meal_items set created_at = '2026-08-01T12:00:00.000Z'").run();
+
+    const rows = rowsOf(await searchPastItems(store.db, { userId: USER_A, query: 'rice' }));
+    expect(rows[0]?.baseCalories).toBe(175);
+  });
+
+  // The same tie, reached the way a real diary reaches it most often.
+  it('picks the later item when one meal holds the same food twice', async () => {
+    await saveMeal(
+      store.db,
+      {
+        userId: USER_A,
+        eatenAt: new Date('2026-08-01T12:00:00Z'),
+        timeZone: 'UTC',
+        items: [
+          anItem({ name: 'Rice', baseCalories: 100 }),
+          anItem({ name: 'Rice', baseCalories: 175 }),
+        ],
+      },
+      ids,
+    );
+
+    const shared = store.raw
+      .prepare('select count(distinct created_at) as n from meal_items')
+      .get() as { n: number };
+    expect(shared.n).toBe(1);
+
+    const rows = rowsOf(await searchPastItems(store.db, { userId: USER_A, query: 'rice' }));
+    expect(rows).toHaveLength(1);
     expect(rows[0]?.baseCalories).toBe(175);
   });
 

@@ -87,6 +87,10 @@ except `ids/device.ts` and `local/database-file.ts`, which are the two deliberat
   read time.
 - `meal_items` carries its own `user_id` even though `meal_id` implies it, so no row level security
   policy needs a join.
+- `saveMeal` stamps one `created_at` for the whole meal, so every item in a meal shares an instant
+  exactly, and two meals saved in the same millisecond do too. Never pick "the most recent row"
+  with `MAX(created_at)` and bare columns: SQLite resolves that tie arbitrarily. Order explicitly
+  by `(created_at DESC, id DESC)`, as `searchPastItems` does.
 - SQLite carries `is_dirty` and `synced_at`; Postgres deliberately does not. The parity check
   asserts they are absent from Postgres rather than ignoring them.
 - `supabase/migrations/` is generated. Do not hand edit it; run `npm run gen:supabase-migration`.
