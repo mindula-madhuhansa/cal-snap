@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { openUserDatabase } from '@/data/local/database-file';
 
@@ -100,10 +100,43 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
   const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const [state, setState] = useState<AccountState>({ kind: 'loading' });
 
+  /**
+   * `getToken` is a fresh function on every render, so it must not be an
+   * effect dependency: it would retrigger the sequence, which sets state,
+   * which renders, which makes another `getToken`, forever. Holding it in a
+   * ref keeps the latest one reachable while the effect below depends only on
+   * the three primitives that actually describe the session.
+   */
+  const getTokenRef = useRef(getToken);
+
+  // Kept current in an effect rather than during render, which React forbids.
+  // Declared before the sequence below so it runs first, and seeded by
+  // `useRef` above, so the ref is never empty even on the first pass.
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
+
   useEffect(() => {
     let cancelled = false;
+
+    /**
+     * Sets the state, but returns the previous object when nothing has
+     * actually changed, so React bails out instead of rendering.
+     *
+     * The two states with no payload (`loading`, `signed-out`) are the ones
+     * worth guarding: a fresh object literal is never `Object.is` equal to
+     * the last one, so re-settling the same state renders every time. That
+     * turned an unstable effect dependency into an infinite loop once
+     * already, and the guard makes the failure impossible rather than
+     * unlikely.
+     */
     const settle = (next: AccountState): void => {
-      if (!cancelled) setState(next);
+      if (cancelled) return;
+      setState((previous) =>
+        previous.kind === next.kind && (next.kind === 'loading' || next.kind === 'signed-out')
+          ? previous
+          : next,
+      );
     };
 
     // Step 1. Until Clerk has answered there is nothing to do and nothing to
@@ -132,7 +165,7 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
       if (opened.createdNow) settle({ kind: 'restoring' });
 
       // Step 3. Needs both of the above.
-      const fromServer = await pullProfile(userId, getToken);
+      const fromServer = await pullProfile(userId, (...args) => getTokenRef.current(...args));
       const lookup =
         fromServer.kind === 'fresh' ? fromServer : await readLocalProfile(opened.db, userId);
 
@@ -149,7 +182,9 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, isSignedIn, userId, getToken]);
+    // Only the three values that describe the session. `getToken` is
+    // deliberately absent; see the ref above.
+  }, [isLoaded, isSignedIn, userId]);
 
   return <AccountContext.Provider value={state}>{children}</AccountContext.Provider>;
 };
