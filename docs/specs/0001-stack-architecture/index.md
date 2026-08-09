@@ -1,7 +1,7 @@
 # 0001. Stack and architecture for CalSnap
 
 **Date**: 2026-08-08
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 

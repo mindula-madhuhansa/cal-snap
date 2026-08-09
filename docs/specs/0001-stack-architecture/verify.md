@@ -13,15 +13,23 @@ format, and typecheck were all re run together and all three exit 0. The fix
 touches formatting configuration only, so the on device observations from the
 first pass still stand.
 
-Two steps stay open, for two different reasons, and neither can be closed on
-this machine:
+**Third pass, same day, closed by the engineer.** Two steps could not be run on
+the Windows machine and were handed over:
 
-- The GitHub Actions step **could not be run**: the repository is private and
-  this machine has no GitHub login, and pushing needs your say so anyway.
-- `npm run ios` **cannot be run here at all**: an iOS simulator needs macOS.
-  The iOS half of AC-1 stays unproven on this machine. The iOS bundle does
-  build, which is a weaker but real signal. Running the app through Expo Go on
-  a real iPhone would close this more convincingly than a simulator would.
+- **GitHub Actions: green.** The engineer pushed commit `12a595b` (which
+  carries the `.prettierrc` fix) and the CI job passed. That closes AC-7, and
+  independently confirms AC-6, since CI runs the format check on Linux.
+- **A real Android phone: no problems found.** The engineer ran the app through
+  Expo Go on their own Android device. This is stronger evidence than the
+  emulator for the Android half of AC-1.
+
+**One criterion is still not fully proven.** AC-1 asks for both platforms. No
+Apple device has ever run this app: no Mac for a simulator, and the engineer's
+phone is Android. What is proven for iOS is that the bundle builds
+(`npx expo export --platform ios` succeeds) and that the code is shared, so
+there is no known reason it would fail. That is reasonable confidence, not
+proof. The honest position is that the iOS boot is untested, and the first
+person to run it on an iPhone is doing a real check, not a formality.
 
 An earlier note on this file said no Android SDK was installed. That was wrong.
 An SDK is installed at `~/AppData/Local/Android/Sdk`; what was broken was the
@@ -58,8 +66,8 @@ before a second one arrives.
 
 ## UI / manual
 
-- [ ] `npm run ios` → the app boots on an iOS simulator and lands on the Today tab → AC-1 · **not runnable on Windows**
-- [x] `npm run android` → the same build boots on an Android emulator → AC-1
+- [ ] `npm run ios` → the app boots on an iOS simulator and lands on the Today tab → AC-1 · **still unproven, no Apple device has run this app**
+- [x] `npm run android` → the same build boots on an Android emulator → AC-1 · also confirmed on a real Android phone through Expo Go
 - [x] Add `src/app/(tabs)/probe.tsx` exporting a screen → a third tab appears without touching any router config; delete the file → the tab goes → AC-3
 - [x] On the Today screen, headings render in Cormorant Garamond and body text in Lora, on the warm paper ground `#f3f2f2` with the gold `CalSnap` kicker → AC-4
 - [x] Turn the phone's text size up to its largest setting → the Today screen text grows and nothing is clipped or overlapped → AC-4, accessibility baseline
@@ -75,19 +83,19 @@ before a second one arrives.
 - [x] `npm run format` → "All matched files use Prettier code style!" → AC-6
 - [x] Stage a badly formatted `.ts` file and commit → the pre-commit hook formats it and runs the typecheck before the commit lands → AC-6
 - [x] `npx expo-doctor` → 21/21 checks pass → AC-2
-- [ ] Push the branch to GitHub → the CI workflow runs lint, format, typecheck, and test, and goes green → AC-7 · **blocked, no GitHub login here**
+- [x] Push the branch to GitHub → the CI workflow runs lint, format, typecheck, and test, and goes green → AC-7 · green on commit `12a595b`
 - [x] `npx expo export --platform ios --platform android` → both bundles build → AC-1
 - [x] `grep -rl "sk-ant\|ANTHROPIC_API_KEY\|service_role" <export dir>` → no matches, and `git grep` for the same in the repo → no matches → AC-8
 
 ## Acceptance-criteria coverage
 
-- AC-1 · Android boot observed, both bundles export · iOS simulator unproven, needs a Mac
+- AC-1 · Android met twice, on the emulator and on a real phone; both bundles export · **iOS boot still unproven, no Apple device available**
 - AC-2 · met, `npm run typecheck` and `npx expo-doctor` both clean
 - AC-3 · met, the tab appeared on adding the file and went on deleting it
 - AC-4 · met, fonts, colours, and the largest text size all render correctly
 - AC-5 · met, schema version 1 shown and kept across a force quit
 - AC-6 · met, lint, format, and typecheck all exit 0, and the pre-commit hook runs them
-- AC-7 · blocked, needs a GitHub login
+- AC-7 · met, CI green on commit `12a595b`
 - AC-7b · met, both the bad value and the no variables cases behave as specced
 - AC-8 · met, nothing in the bundles, nothing real in the repo
 
