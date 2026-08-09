@@ -12,9 +12,9 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | # | Feature | Phase | Status |
 |---|---------|-------|--------|
 | 1 | Stack & architecture | Foundation | done |
-| 2 | Coding standards & tooling | Foundation | in-progress |
+| 2 | Coding standards & tooling | Foundation | done |
 | 3 | Data model | Foundation | in-progress |
-| 4 | Design system & UI foundation | Foundation | in-progress |
+| 4 | Design system & UI foundation | Foundation | done |
 | 5 | Account & sign in | Release 1 | planned |
 | 6 | Onboarding & daily calorie target | Release 1 | planned |
 | 7 | Snap a meal: AI nutrition scan | Release 1 | planned |
@@ -44,10 +44,10 @@ Choose the mobile stack, the backend, and how the phone talks to it, then scaffo
 - [ ] Test it: `/test stack & architecture` — skipped on purpose. The scaffold's only durable logic is three small modules, and its two screens are throwaway, so there was nothing worth locking in yet. Vitest is chosen and recorded in `test-preferences.json`; the first real feature sets the suite up.
 Spec [0001](../specs/0001-stack-architecture/index.md) · code in `src/` (`app/`, `design-system/`, `db/`, `config/`, `startup/`)
 
-### 2. Coding standards & tooling · in-progress
+### 2. Coding standards & tooling · done
 Capture the conventions from the real scaffolded project, then install lint, formatting, type strictness, and pre commit checks so every later file follows the same rules.
 **Done when:** root `AGENTS.md` reflects the real stack, and lint, format, and type checks run clean.
-- [ ] Capture conventions + tooling choices: `/audit` — still owed. Root `AGENTS.md` reads `<to be filled>` for the stack and says the tooling is not installed yet; both are now out of date.
+- [x] Capture conventions + tooling choices: `/audit` — done. Root `AGENTS.md` now reflects the real stack in full (its own footer confirms `/audit` drafted it) and the Tooling section describes the real lint, format, type, and CI setup; the note above describing it as `<to be filled>` was itself stale.
 - [x] Install the tooling: `/develop tooling` — the scaffold already had lint, format, pre commit hooks, and CI, so this run made the linter enforce the `AGENTS.md` rules that nothing checked: no default exports (routes and `app.config.ts` excepted), no `any`, no `@ts-ignore`, no non null assertions, no parameter mutation, prefer const.
 Code in `eslint.config.js` (rules), `.lintstagedrc.json` + `.husky/pre-commit` (commit checks), `.github/workflows/ci.yml` (push checks)
 
@@ -65,7 +65,7 @@ The core entities everything else reads and writes: a user, their profile and go
 - [x] Test it: `/test data model` — 238 Vitest tests across 16 files, each pinned criterion tagged `covers: AC-N`. Replaced the earlier `check:schema` and `check:data` scripts, so `npm test` is now the single gate in CI.
 Spec [0002](../specs/0002-data-model/index.md) · code in `src/data/` (`schema/`, `calculations/`, `ids/`, `local/`), `src/db/migrations.ts`, `supabase/migrations/`, tests beside the source plus `test/support/`
 
-### 4. Design system & UI foundation · in-progress
+### 4. Design system & UI foundation · done
 The visual language and the base building blocks: type scale, color, spacing, buttons, cards, inputs, the tab bar, and the empty and loading states. This is the feature that decides whether people keep the app, so it is a foundation and not a coat of paint applied later.
 **Done when:** `design.md` defines type, color, spacing, motion, and the base components; the components respect the system font size setting and meet contrast requirements; a sample screen built only from them looks finished.
 - [x] Design it (spec): `/architect design system & UI foundation`
@@ -73,8 +73,8 @@ The visual language and the base building blocks: type scale, color, spacing, bu
    - [x] The thinnest system standing under a real screen: token additions and the colour role rule, the type spine with font scaling, `Screen`, `Icon`, `Button`, `Card`, `Tag`, `ListRow`, `Divider`, the typographic tab bar, and the Today tab rebuilt from them (AC-2..AC-5, AC-7, AC-8, AC-10, AC-14, AC-15)
    - [x] Thicken it to what Release 1 needs: haptics, `Stepper`, the form set with its accessibility wiring, the empty, loading and error states, and reduce motion (AC-3, AC-5, AC-6, AC-9, AC-11, AC-12)
    - [x] Make it hold: the ESLint rules, Vitest over every pure function, `docs/design/design.md` in full, and the accessibility sweep (AC-1, AC-2, AC-3, AC-6, AC-13, AC-14, AC-16)
-- [ ] Verify it: `/check verify design system & UI foundation`
-- [ ] Test it: `/test design system & UI foundation`
+- [x] Verify it: `/check verify design system & UI foundation` — passed in full on 9 August 2026: an emulator pass covered lint/typecheck/tests/contrast math/most UI, then the engineer confirmed the remaining device-only steps (screen reader, haptics, safe area, live font scaling) on a real EAS development build. Detail in the spec's `verify.md`.
+- [x] Test it: `/test design system & UI foundation` — 22 new tests over `theme.ts`'s derived colour tokens and `haptics.ts`'s fire-and-forget contract (309 total, all passing).
 Spec [0003](../specs/0003-design-system-ui-foundation/index.md) · code in `src/design-system/` (`theme.ts`, `components/`, the pure rules and their tests), `src/app/(tabs)/` (both screens and the tab bar), `eslint.config.js`, `docs/design/design.md`
 
 ## Release 1: The smallest usable app
