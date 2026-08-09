@@ -38,7 +38,7 @@ export type ForeignKey = {
   readonly column: string;
   readonly onDelete: 'cascade' | 'set null';
   /**
-   * `auth.users` exists in Postgres only. On the phone the file already
+   * A table that exists in Postgres only. On the phone the file already
    * belongs to one user, so there is nothing to point at.
    */
   readonly postgresOnly?: boolean;
@@ -107,10 +107,15 @@ export const between = (min: number, max: number): ColumnCheck => ({
  * The user this row belongs to. Every synced table carries it, because every
  * row level security policy tests it and no policy should need a join
  * (spec 0002, security model).
+ *
+ * It is `text`, not `uuid`, and it points at nothing. Spec 0004 moved identity
+ * to Clerk, whose identifiers are strings like `user_2abc...`, so there is no
+ * `auth.users` row to reference and no cascade to inherit. Deleting an account
+ * is therefore explicit work, not a side effect of the foreign key: the Clerk
+ * `user.deleted` webhook (scope feature 10) owns it.
  */
 export const userId: Column = {
   name: 'user_id',
-  type: uuid,
+  type: text,
   nullable: false,
-  references: { table: 'auth.users', column: 'id', onDelete: 'cascade', postgresOnly: true },
 };

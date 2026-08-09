@@ -63,8 +63,13 @@ export const testIdSource = (): IdSource => {
   );
 };
 
-export const USER_A = '11111111-2222-4333-8444-555555555555';
-export const USER_B = '99999999-8888-4777-8666-555555555555';
+/**
+ * Clerk shaped identifiers, not UUIDs: spec 0004 moved identity to Clerk, so
+ * `user_id` is text holding a value like this one. The tests use the real
+ * shape so that anything assuming a UUID fails here rather than on a phone.
+ */
+export const USER_A = 'user_2aBcDeFgHiJkLmNoPqRsTuVwX';
+export const USER_B = 'user_2zYxWvUtSrQpOnMlKjIhGfEdC';
 
 /** A meal item with sensible numbers, so a test only states what it cares about. */
 export const anItem = (

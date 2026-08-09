@@ -204,19 +204,44 @@ describe('toPostgres', () => {
     }
   });
 
-  // covers: AC-2
+  // covers: AC-2, and spec 0004 AC-7. Identity is Clerk's, so a policy tests
+  // the verified token's sub claim rather than auth.uid().
   it('writes one own rows policy per table, testing user_id', () => {
     for (const table of releaseOneTables) {
       expect(sql).toContain(`create policy ${table.name}_own_rows on public.${table.name}`);
     }
-    expect(sql).toContain('using      (user_id = (select auth.uid()))');
-    expect(sql).toContain('with check (user_id = (select auth.uid()))');
+    expect(sql).toContain("using      (user_id = (select auth.jwt() ->> 'sub'))");
+    expect(sql).toContain("with check (user_id = (select auth.jwt() ->> 'sub'))");
   });
 
-  // covers: AC-2. Wrapping auth.uid() in a select makes Postgres evaluate it
+  // covers: AC-2. Wrapping the claim in a select makes Postgres evaluate it
   // once per statement rather than once per row.
-  it('never calls auth.uid() unwrapped', () => {
-    expect(sql).not.toMatch(/=\s*auth\.uid\(\)/);
+  it('never reads the acting identity unwrapped', () => {
+    expect(sql).not.toMatch(/=\s*auth\.jwt\(\)/);
+  });
+
+  // covers: spec 0004 AC-7. The trap this guards is the reason it exists:
+  // under Clerk, auth.uid() returns null rather than failing, so a policy
+  // copied from a Supabase example would match zero rows *silently*. That is
+  // a security bug that looks like an empty screen. Fail the suite instead.
+  it('never mentions auth.uid(), anywhere, in generated SQL', () => {
+    expect(sql).not.toContain('auth.uid');
+  });
+
+  // covers: spec 0004 AC-7. No row points at auth.users any more: identity is
+  // Clerk's, so there is no such row and no cascade. Deletion is explicit
+  // work (the Clerk user.deleted webhook, scope feature 10).
+  it('references auth.users nowhere', () => {
+    expect(sql).not.toContain('auth.users');
+  });
+
+  // covers: spec 0004 AC-7. A Clerk identifier is a string, so every user_id
+  // must be text. A stray uuid column would reject every real identifier.
+  it('declares user_id as text on every table', () => {
+    const syncedTables = releaseOneTables.filter((table) => table.presence === 'both');
+    const textColumns = sql.match(/user_id text not null/g) ?? [];
+    expect(textColumns).toHaveLength(syncedTables.length);
+    expect(sql).not.toMatch(/user_id uuid/);
   });
 
   // covers: AC-2. Every policy tests user_id on every row it touches, so

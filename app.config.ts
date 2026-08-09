@@ -11,6 +11,13 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  */
 const extra = {
   appEnv: process.env.EXPO_PUBLIC_APP_ENV,
+  // Identity (Clerk) and the database (Supabase), spec 0004. All three are
+  // public identifiers and safe to ship: the Clerk key names an instance, and
+  // the Supabase key grants nothing on its own now that every policy requires
+  // a valid Clerk token.
+  clerkPublishableKey: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
+  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   eas: {
     projectId: '04eafa92-d566-463e-8f26-df88822e4ad6',
   },
@@ -59,6 +66,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-font',
     'expo-sqlite',
     'expo-status-bar',
+    // Clerk's native sign in needs native code, so this feature can only run
+    // on a development build, never in Expo Go (spec 0004, Consequences).
+    '@clerk/expo',
     [
       'expo-splash-screen',
       {

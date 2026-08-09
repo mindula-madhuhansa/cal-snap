@@ -40,17 +40,29 @@ const indexStatement = (table: Table, index: Index): string => {
 };
 
 /**
- * `auth.uid()` is wrapped in a `select` so Postgres evaluates it once per
+ * The acting identity is the `sub` claim of the verified Clerk token, not
+ * `auth.uid()` (spec 0004, security model). Supabase validates the token's
+ * signature against Clerk's published keys before any policy runs, so a client
+ * cannot lie about who it is.
+ *
+ * **`auth.uid()` must never appear here again.** With Clerk it returns null
+ * rather than failing, so a policy written from a Supabase example would match
+ * zero rows silently instead of erroring. `to-postgres.test.ts` fails if the
+ * string reappears in generated SQL.
+ *
+ * The claim is wrapped in a `select` so Postgres evaluates it once per
  * statement instead of once per row.
  */
+const ACTING_USER = "(select auth.jwt() ->> 'sub')";
+
 const securityStatements = (table: Table): readonly string[] => [
   `alter table public.${table.name} enable row level security;`,
   `alter table public.${table.name} force row level security;`,
   '',
   `create policy ${table.name}_own_rows on public.${table.name}`,
   '  for all to authenticated',
-  '  using      (user_id = (select auth.uid()))',
-  '  with check (user_id = (select auth.uid()));',
+  `  using      (user_id = ${ACTING_USER})`,
+  `  with check (user_id = ${ACTING_USER});`,
 ];
 
 export const tableToPostgres = (table: Table): string => {

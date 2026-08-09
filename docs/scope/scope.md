@@ -15,7 +15,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 2 | Coding standards & tooling | Foundation | done |
 | 3 | Data model | Foundation | in-progress |
 | 4 | Design system & UI foundation | Foundation | done |
-| 5 | Account & sign in | Release 1 | planned |
+| 5 | Account & sign in | Release 1 | in-progress |
 | 6 | Onboarding & daily calorie target | Release 1 | planned |
 | 7 | Snap a meal: AI nutrition scan | Release 1 | planned |
 | 8 | Review & save a meal | Release 1 | planned |
@@ -81,10 +81,19 @@ Spec [0003](../specs/0003-design-system-ui-foundation/index.md) · code in `src/
 
 The thinnest version you would genuinely ship: you set up once, snap meals, and see how much of your day is left. No exercise, no history, no chat. Someone could use only this and get real value.
 
-### 5. Account & sign in · GA
+### 5. Account & sign in · in-progress · GA
 Create an account, sign in, stay signed in, and have your data belong to you so it survives a new phone. This is also the first path that runs phone to backend to database end to end, so it proves the stack is truly connected.
 **Done when:** a new person can create an account and sign in, the session survives closing the app, signing in on a second device shows the same data, and failure states (wrong details, no network) say something useful.
+- [x] Design it (spec): `/architect account & sign in` — decided Clerk for identity rather than Supabase Auth, which reverses spec 0001's Auth row and turns every `user_id` into text. A cross check on a second model found nine gaps, all closed before acceptance.
 - [ ] Build it: `/develop account & sign in`
+   - [ ] The door works: the schema change to text identifiers with the new policies, Clerk wired into the splash gate, the combined sign in screen, native Google and Apple, session routing, and sign out in Settings (AC-1..AC-8, AC-11, AC-14, AC-16)
+   - [ ] The data follows you: the Supabase client on Clerk's token, `runSync` with its three triggers, the restoring screen on a fresh device, the syncing marker, and the draining sign out (AC-9, AC-10, AC-11, AC-11b, AC-15)
+   - [ ] It holds up: every failure message written out, a session ending mid use handled, the accessibility sweep, and specs 0001 and 0002 amended to match (AC-7, AC-12, AC-13, AC-16)
+- [ ] Verify it: `/check verify account & sign in`
+- [ ] Test it: `/test account & sign in`
+- [ ] Review it (fresh model): `/check review account & sign in`
+- [ ] Document it: `/document account & sign in`
+Spec [0004](../specs/0004-account-and-sign-in/index.md)
 
 ### 6. Onboarding & daily calorie target · needs a decision
 The first run: a few plain questions about height, weight, age, sex, activity level, and whether you want to lose, hold, or gain, and from those the app calculates the calories you should eat each day. It has to feel like four taps, not a medical form.
@@ -155,6 +164,7 @@ Out of scope for the current build pass, kept so the plan stays honest.
 - **Describe a meal in words**: log by text when a photo is not possible · needs a decision
 - **Saved and repeat meals**: log the breakfast you eat every day in one tap
 - **Works offline**: log and view without a connection, syncing later · needs a decision
+- **Account settings, including changing your password**: spec 0004 deliberately left this out of release 1, because an emailed code means nobody is ever locked out, but there is currently no way to change a password once set · from spec 0004
 - **More languages**: English only for now, with text kept out of the screens so this stays cheap
 
 ## Legend
