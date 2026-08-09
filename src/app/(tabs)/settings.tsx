@@ -1,8 +1,8 @@
 import { View } from 'react-native';
 
 import { AppText } from '@/design-system/components/app-text';
-import { Card } from '@/design-system/components/card';
 import { Divider } from '@/design-system/components/divider';
+import { EmptyState } from '@/design-system/components/empty-state';
 import { ListRow } from '@/design-system/components/list-row';
 import { Screen } from '@/design-system/components/screen';
 import { colors } from '@/design-system/theme';
@@ -31,12 +31,10 @@ export default function SettingsScreen() {
         Settings
       </AppText>
 
-      <Card title="Nothing to change yet">
-        <AppText variant="bodySmall" color={colors.textSubtle}>
-          There is no account, no target, and no data to manage until those features are built.
-          Anything you could set here would be pretending.
-        </AppText>
-      </Card>
+      <EmptyState
+        title="Nothing to change yet"
+        body="There is no account, no target, and no data to manage until those features are built. Anything you could set here would be pretending."
+      />
 
       <Divider />
 
