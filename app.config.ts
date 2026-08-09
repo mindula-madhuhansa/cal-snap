@@ -13,6 +13,17 @@ const extra = {
   appEnv: process.env.EXPO_PUBLIC_APP_ENV,
 } as const;
 
+/**
+ * The paper ground, written out rather than read from `src/design-system/theme.ts`.
+ *
+ * This is the one place in the repo allowed a raw hex, and it is not a choice:
+ * Expo transpiles this file and requires the result before Metro or the
+ * TypeScript path aliases exist, so an import of the theme cannot resolve. It
+ * is the splash and icon ground, so it has to match `colors.bg`. If the paper
+ * is ever retuned, this line changes with it.
+ */
+const PAPER = '#f3f2f2';
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'CalSnap',
@@ -26,7 +37,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: './assets/images/icon.png',
   // The Classical design is a single warm paper theme, with no dark variant.
   userInterfaceStyle: 'light',
-  backgroundColor: '#f3f2f2',
+  backgroundColor: PAPER,
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.calsnap.app',
@@ -34,7 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: 'com.calsnap.app',
     adaptiveIcon: {
-      backgroundColor: '#f3f2f2',
+      backgroundColor: PAPER,
       foregroundImage: './assets/images/android-icon-foreground.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
@@ -47,7 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-splash-screen',
       {
-        backgroundColor: '#f3f2f2',
+        backgroundColor: PAPER,
         image: './assets/images/splash-icon.png',
         imageWidth: 96,
       },

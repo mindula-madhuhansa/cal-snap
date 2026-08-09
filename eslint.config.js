@@ -61,6 +61,46 @@ module.exports = defineConfig([
     files: ['src/app/**/*.{ts,tsx}'],
     rules: {
       'import/no-default-export': 'off',
+
+      // spec 0003, AC-13: a screen reaches for the design system's components,
+      // never React Native's raw primitives. Going through `AppText` is what
+      // guarantees the type scale, the font-size setting, and a token colour;
+      // a bare `Text` skips all three and nothing would catch it in review.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              importNames: ['Text', 'Pressable', 'TouchableOpacity', 'TextInput'],
+              message:
+                'Screens build from the design system: use AppText, NumberText, Button, ListRow, or TextInput from @/design-system/components.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // spec 0003, AC-13 and AC-14: one definition of every colour and every
+    // font. `theme.ts` is the only file allowed to name either, so a value
+    // cannot be pasted into a component and quietly drift from the design.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/design-system/theme.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]',
+          message:
+            'No raw hex colours outside src/design-system/theme.ts. Import the token instead.',
+        },
+        {
+          selector: 'Literal[value=/(?:Cormorant|Lora)/]',
+          message:
+            'No font family strings outside src/design-system/theme.ts. Use theme.fonts or a type step.',
+        },
+      ],
     },
   },
   {
