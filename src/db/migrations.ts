@@ -8,6 +8,8 @@
  *   - Each one runs inside a transaction, so a failure leaves the previous
  *     version intact rather than a half-applied schema.
  */
+import { coreDataModelSql } from '@/data/local/migrations';
+
 export type Migration = {
   readonly version: number;
   readonly name: string;
@@ -15,9 +17,8 @@ export type Migration = {
 };
 
 /**
- * The product tables (a user, a profile, a meal, an exercise entry, a weight
- * entry) are scope feature 3's decision and are deliberately not invented
- * here. This first migration only stands the database up.
+ * The product tables are scope feature 3's decision and are deliberately not
+ * invented here. This first migration only stands the database up.
  */
 const initial: Migration = {
   version: 1,
@@ -33,7 +34,20 @@ const initial: Migration = {
   `,
 };
 
-export const migrations: readonly Migration[] = [initial];
+/**
+ * The six release 1 tables from spec 0002. Its SQL is generated from the
+ * schema declaration in `src/data/schema/`, so this migration and the
+ * Supabase one cannot drift apart. See `src/data/local/migrations.ts` for the
+ * fingerprint that stops an edit to a declaration changing this migration
+ * after it has shipped.
+ */
+const coreDataModel: Migration = {
+  version: 2,
+  name: 'core-data-model',
+  sql: coreDataModelSql,
+};
+
+export const migrations: readonly Migration[] = [initial, coreDataModel];
 
 /** The version the database should be at once every migration has run. */
 export const latestVersion: number = migrations.length;

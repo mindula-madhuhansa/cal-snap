@@ -70,4 +70,13 @@ module.exports = defineConfig([
       'import/no-default-export': 'off',
     },
   },
+  {
+    // The check scripts are command line tools that run outside the app and
+    // never ship in a build. Printing their results to stdout is the whole
+    // job, so the no-console rule has nothing to protect here.
+    files: ['scripts/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ]);
