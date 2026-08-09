@@ -13,14 +13,18 @@
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "typecheck": "tsc --noEmit",
-    "prepare": "husky"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "gen:supabase-migration": "tsx --disable-warning=ExperimentalWarning scripts/generate-supabase-migration.ts",
+    "prepare": "husky",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@expo-google-fonts/cormorant-garamond": "^0.4.1",
     "@expo-google-fonts/lora": "^0.4.2",
     "expo": "~56.0.19",
     "expo-constants": "~56.0.23",
+    "expo-crypto": "~56.0.4",
     "expo-font": "~56.0.7",
     "expo-linking": "~56.0.16",
     "expo-router": "~56.2.18",
@@ -38,6 +42,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~56.0.4",
@@ -45,7 +50,9 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "prettier": "^3.9.6",
-    "typescript": "~6.0.3"
+    "tsx": "^4.23.11",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "react-dom": "19.2.3"

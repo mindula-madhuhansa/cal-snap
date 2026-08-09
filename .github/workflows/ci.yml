@@ -32,6 +32,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # A no-op until /test sets the suite up, then it runs for real.
+      # Vitest over the pure logic, the schema generators, and the data access
+      # layer driven against a real SQLite database. Each test is tagged with
+      # the spec 0002 acceptance criterion it covers.
       - name: Test
-        run: npm test --if-present
+        run: npm test

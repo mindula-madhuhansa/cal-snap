@@ -13,7 +13,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 |---|---------|-------|--------|
 | 1 | Stack & architecture | Foundation | done |
 | 2 | Coding standards & tooling | Foundation | in-progress |
-| 3 | Data model | Foundation | planned |
+| 3 | Data model | Foundation | in-progress |
 | 4 | Design system & UI foundation | Foundation | planned |
 | 5 | Account & sign in | Release 1 | planned |
 | 6 | Onboarding & daily calorie target | Release 1 | planned |
@@ -51,10 +51,19 @@ Capture the conventions from the real scaffolded project, then install lint, for
 - [x] Install the tooling: `/develop tooling` — the scaffold already had lint, format, pre commit hooks, and CI, so this run made the linter enforce the `AGENTS.md` rules that nothing checked: no default exports (routes and `app.config.ts` excepted), no `any`, no `@ts-ignore`, no non null assertions, no parameter mutation, prefer const.
 Code in `eslint.config.js` (rules), `.lintstagedrc.json` + `.husky/pre-commit` (commit checks), `.github/workflows/ci.yml` (push checks)
 
-### 3. Data model · needs a decision
+### 3. Data model · in-progress
 The core entities everything else reads and writes: a user, their profile and goal, their calculated daily target, a logged meal with its nutrition numbers, and later an exercise entry and a weight entry. This is the most expensive thing to get wrong, because changing it after people have real diaries means a migration.
 **Done when:** the entities and their relationships support meals, exercise, weight, and history without a breaking change, days roll over correctly in the user's own timezone, and one person can never read another person's data.
-- [ ] Design it (spec): `/architect data model`
+- [x] Design it (spec): `/architect data model`
+- [ ] Build it: `/develop data model`
+   - [x] Schema declarations plus the SQLite and Postgres generators, with the parity test (AC-1, AC-13)
+   - [x] Local tables and the data access layer over them, paginated and tombstone aware (AC-1, AC-4, AC-5, AC-7, AC-8, AC-9, AC-15, AC-16)
+   - [x] The pure calculations: portion rescaling, the local day resolver, the meal type guess, unit conversion (AC-3, AC-6, AC-12)
+   - [x] Per user database file lifecycle, opened on sign in and removed on sign out (AC-11)
+   - [ ] The cloud half: Postgres migration with row level security, sync, account deletion, retention sweep (AC-2, AC-5, AC-10, AC-14, AC-17) — the Postgres migration is applied and row level security is live and confirmed on all six tables; sync, account deletion, and the retention sweep wait for feature 5
+- [ ] Verify it: `/check verify data model`
+- [x] Test it: `/test data model` — 238 Vitest tests across 16 files, each pinned criterion tagged `covers: AC-N`. Replaced the earlier `check:schema` and `check:data` scripts, so `npm test` is now the single gate in CI.
+Spec [0002](../specs/0002-data-model/index.md) · code in `src/data/` (`schema/`, `calculations/`, `ids/`, `local/`), `src/db/migrations.ts`, `supabase/migrations/`, tests beside the source plus `test/support/`
 
 ### 4. Design system & UI foundation · needs a decision
 The visual language and the base building blocks: type scale, color, spacing, buttons, cards, inputs, the tab bar, and the empty and loading states. This is the feature that decides whether people keep the app, so it is a foundation and not a coat of paint applied later.
