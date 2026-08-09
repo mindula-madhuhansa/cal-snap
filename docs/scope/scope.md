@@ -14,7 +14,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 1 | Stack & architecture | Foundation | done |
 | 2 | Coding standards & tooling | Foundation | in-progress |
 | 3 | Data model | Foundation | in-progress |
-| 4 | Design system & UI foundation | Foundation | planned |
+| 4 | Design system & UI foundation | Foundation | in-progress |
 | 5 | Account & sign in | Release 1 | planned |
 | 6 | Onboarding & daily calorie target | Release 1 | planned |
 | 7 | Snap a meal: AI nutrition scan | Release 1 | planned |
@@ -65,10 +65,17 @@ The core entities everything else reads and writes: a user, their profile and go
 - [x] Test it: `/test data model` — 238 Vitest tests across 16 files, each pinned criterion tagged `covers: AC-N`. Replaced the earlier `check:schema` and `check:data` scripts, so `npm test` is now the single gate in CI.
 Spec [0002](../specs/0002-data-model/index.md) · code in `src/data/` (`schema/`, `calculations/`, `ids/`, `local/`), `src/db/migrations.ts`, `supabase/migrations/`, tests beside the source plus `test/support/`
 
-### 4. Design system & UI foundation · needs a decision
+### 4. Design system & UI foundation · in-progress
 The visual language and the base building blocks: type scale, color, spacing, buttons, cards, inputs, the tab bar, and the empty and loading states. This is the feature that decides whether people keep the app, so it is a foundation and not a coat of paint applied later.
 **Done when:** `design.md` defines type, color, spacing, motion, and the base components; the components respect the system font size setting and meet contrast requirements; a sample screen built only from them looks finished.
-- [ ] Design it (spec): `/architect design system & UI foundation`
+- [x] Design it (spec): `/architect design system & UI foundation`
+- [ ] Build it: `/develop design system & UI foundation`
+   - [x] The thinnest system standing under a real screen: token additions and the colour role rule, the type spine with font scaling, `Screen`, `Icon`, `Button`, `Card`, `Tag`, `ListRow`, `Divider`, the typographic tab bar, and the Today tab rebuilt from them (AC-2..AC-5, AC-7, AC-8, AC-10, AC-14, AC-15)
+   - [ ] Thicken it to what Release 1 needs: haptics, `Stepper`, the form set with its accessibility wiring, the empty, loading and error states, and reduce motion (AC-3, AC-5, AC-6, AC-9, AC-11, AC-12)
+   - [ ] Make it hold: the ESLint rules, Vitest over every pure function, `docs/design/design.md` in full, and the accessibility sweep (AC-1, AC-2, AC-3, AC-6, AC-13, AC-14, AC-16)
+- [ ] Verify it: `/check verify design system & UI foundation`
+- [ ] Test it: `/test design system & UI foundation`
+Spec [0003](../specs/0003-design-system-ui-foundation/index.md)
 
 ## Release 1: The smallest usable app
 
