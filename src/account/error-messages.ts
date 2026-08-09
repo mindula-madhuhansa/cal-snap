@@ -1,3 +1,5 @@
+import { devWarn } from '@/config/dev-warning';
+
 /**
  * Turning a failure into a sentence a person can act on (spec 0004, AC-12).
  *
@@ -81,6 +83,21 @@ const BY_CODE: Readonly<Record<string, FailureMessage>> = {
     retryable: true,
   },
   /**
+   * Not a Clerk code. The email was verified but the sign up cannot complete,
+   * because the Clerk instance demands a field this screen never asks for.
+   *
+   * This is a configuration mistake, not something the person did, and it is
+   * given its own sentence so it never hides behind "something went wrong".
+   * Spec 0004 AC-1 is explicit that no password stands between a new person
+   * and the app, so the fix is always in the dashboard, never a password step
+   * bolted onto this screen.
+   */
+  sign_up_incomplete: {
+    message:
+      'Your email is confirmed, but this account could not be finished. This is a problem on our side, not yours. Please try again shortly.',
+    retryable: false,
+  },
+  /**
    * Not a Clerk code. The session ending mid use is its own case (AC-13): the
    * person did nothing wrong and nothing of theirs was lost, and the sentence
    * has to say both or it reads like data loss.
@@ -151,7 +168,10 @@ const looksLikeNetworkFailure = (error: ClerkLikeError): boolean => {
  * way for a raw provider string, or a silent failure, to reach a person.
  */
 export const failureMessage = (error: unknown): FailureMessage => {
-  if (!isRecord(error)) return UNKNOWN;
+  if (!isRecord(error)) {
+    reportUnmapped(error);
+    return UNKNOWN;
+  }
 
   const clerkError = error as ClerkLikeError;
   const code = clerkError.errors?.[0]?.code ?? clerkError.code;
@@ -164,7 +184,24 @@ export const failureMessage = (error: unknown): FailureMessage => {
 
   if (looksLikeNetworkFailure(clerkError)) return NETWORK;
 
+  reportUnmapped(error);
   return UNKNOWN;
+};
+
+/**
+ * Tells the developer what the person could not be told.
+ *
+ * The person sees one calm sentence, which is right; but "Something went
+ * wrong" with nothing in the console is undebuggable, and an unmapped code is
+ * a gap in the mapping above that somebody should close. This is the only
+ * place a provider string is allowed to exist, and it never reaches a screen.
+ *
+ * Development only: `__DEV__` is false in a release build, so no health value
+ * and no token can ever be written to a device log (spec 0004, security
+ * model).
+ */
+const reportUnmapped = (error: unknown): void => {
+  devWarn('[account] unmapped sign in failure:', JSON.stringify(error, null, 2));
 };
 
 export { NETWORK as networkFailureMessage, UNKNOWN as unknownFailureMessage };

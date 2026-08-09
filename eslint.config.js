@@ -107,8 +107,10 @@ module.exports = defineConfig([
     },
   },
   {
-    // Expo reads the app config off the default export.
-    files: ['app.config.ts'],
+    // Expo reads the app config off the default export, and Vitest reads its
+    // config the same way. Both are tool contracts, not style choices, which
+    // is the same exception `src/app/**` gets for Expo Router's routes.
+    files: ['app.config.ts', 'vitest.config.ts'],
     rules: {
       'import/no-default-export': 'off',
     },

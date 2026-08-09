@@ -1,6 +1,8 @@
 import { useSignIn, useSignUp } from '@clerk/expo';
 import { useCallback, useState } from 'react';
 
+import { devWarn } from '@/config/dev-warning';
+
 import { failureMessage } from './error-messages';
 
 /**
@@ -47,6 +49,21 @@ export type SignInFlow = {
 
 /** Clerk returns `{ error }` rather than throwing, on every method here. */
 type ClerkResult = { readonly error: unknown };
+
+/**
+ * Says, in the developer console, exactly which dashboard setting is blocking
+ * sign up. The person on screen gets a calm sentence; whoever configured the
+ * instance gets the actual field name, which is the only thing that makes
+ * this fixable in under an hour.
+ */
+const reportBlockedSignUp = (missingFields: readonly string[]): void => {
+  devWarn(
+    `[account] sign up blocked: the Clerk instance requires ${missingFields.join(', ')}, ` +
+      'which the combined sign in screen does not collect. Spec 0004 AC-1 says no password ' +
+      'is required to sign up, so make it optional in the Clerk dashboard ' +
+      '(User & authentication -> Email, phone, username -> Password) rather than adding a step here.',
+  );
+};
 
 export const useSignInOrUp = (): SignInFlow => {
   const { signIn } = useSignIn();
@@ -174,7 +191,21 @@ export const useSignInOrUp = (): SignInFlow => {
         const verified = await attempt(() =>
           signUp.verifications.verifyEmailCode({ code: trimmed }),
         );
-        if (verified) await attempt(() => signUp.finalize());
+        if (!verified) return;
+
+        // The email is confirmed, but Clerk will only hand over a session if
+        // the sign up has everything the *instance* requires. If the
+        // dashboard marks a field required that this screen never collects
+        // (a password, most often), `finalize` fails with a shape that maps
+        // to nothing, and the person reads "something went wrong" after doing
+        // everything right. Name it instead.
+        if (signUp.status === 'missing_requirements') {
+          setError(failureMessage({ code: 'sign_up_incomplete' }).message);
+          reportBlockedSignUp(signUp.missingFields);
+          return;
+        }
+
+        await attempt(() => signUp.finalize());
         return;
       }
 

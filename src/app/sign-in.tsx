@@ -25,6 +25,12 @@ import { colors, space } from '@/design-system/theme';
 /** Six digits, so the field can be sized and the keyboard chosen for it. */
 const CODE_LENGTH = 6;
 
+/** What both native sheets hand back. Shared, because they are identical. */
+type SocialResult = {
+  readonly createdSessionId: string | null;
+  readonly setActive?: (params: { readonly session: string }) => Promise<unknown>;
+};
+
 export default function SignInScreen() {
   const flow = useSignInOrUp();
   const [email, setEmail] = useState('');
@@ -40,11 +46,30 @@ export default function SignInScreen() {
   // a stale social error sit under a fresh password error.
   const error = flow.error !== '' ? flow.error : socialError;
 
-  const runSocial = (start: () => Promise<unknown>) => (): void => {
+  /**
+   * Runs a native sign in sheet and, crucially, activates the session it
+   * produces.
+   *
+   * Unlike the email flows, these do **not** end in `finalize()`. They hand
+   * back a `createdSessionId` plus a `setActive`, and the session does not
+   * exist until `setActive` is called. Awaiting the flow and stopping there
+   * looks like success and leaves the person exactly where they started, with
+   * no error to explain it.
+   */
+  const runSocial = (start: () => Promise<SocialResult>) => (): void => {
     setSocialError('');
     void (async () => {
       try {
-        await start();
+        const { createdSessionId, setActive } = await start();
+
+        if (createdSessionId !== null && setActive !== undefined) {
+          await setActive({ session: createdSessionId });
+          return;
+        }
+
+        // No session and no throw means the sheet closed without completing,
+        // which is a cancellation in everything but name.
+        setSocialError('');
       } catch (thrown) {
         // A cancelled sheet maps to an empty message on purpose: the person
         // closed it deliberately, and an error after that reads as a bug.
