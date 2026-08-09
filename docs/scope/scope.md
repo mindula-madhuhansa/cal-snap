@@ -11,8 +11,8 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 
 | # | Feature | Phase | Status |
 |---|---------|-------|--------|
-| 1 | Stack & architecture | Foundation | in-progress |
-| 2 | Coding standards & tooling | Foundation | planned |
+| 1 | Stack & architecture | Foundation | done |
+| 2 | Coding standards & tooling | Foundation | in-progress |
 | 3 | Data model | Foundation | planned |
 | 4 | Design system & UI foundation | Foundation | planned |
 | 5 | Account & sign in | Release 1 | planned |
@@ -31,7 +31,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 
 Nothing here is a feature a user sees, and all of it is ground the releases stand on. Build it once, cheaply, in this order.
 
-### 1. Stack & architecture · in-progress
+### 1. Stack & architecture · done
 Choose the mobile stack, the backend, and how the phone talks to it, then scaffold a project that runs on both iOS and Android. Every later feature rests on this one, and the AI scan and cloud sync both depend on the shape it sets.
 **Done when:** the decision is recorded in a spec, and an empty app boots on an iOS simulator and an Android emulator and passes a build.
 - [x] Decide the stack (spec): `/architect stack & architecture`
@@ -40,15 +40,16 @@ Choose the mobile stack, the backend, and how the phone talks to it, then scaffo
    - [x] Classical theme module and fonts, from `docs/design/classical.css` (AC-4)
    - [x] Local SQLite that opens, migrates, and survives a restart (AC-5)
    - [x] Lint, format, pre-commit hooks, config validation, and the GitHub Actions check (AC-6..8)
-- [ ] Verify it: `/check verify stack & architecture`
-- [ ] Test it: `/test stack & architecture`
+- [x] Verify it: `/check verify stack & architecture` — 8 of 9 criteria proven on 9 August 2026. The iOS boot is untested: no Apple device was available. See the spec's `verify.md`.
+- [ ] Test it: `/test stack & architecture` — skipped on purpose. The scaffold's only durable logic is three small modules, and its two screens are throwaway, so there was nothing worth locking in yet. Vitest is chosen and recorded in `test-preferences.json`; the first real feature sets the suite up.
 Spec [0001](../specs/0001-stack-architecture/index.md) · code in `src/` (`app/`, `design-system/`, `db/`, `config/`, `startup/`)
 
-### 2. Coding standards & tooling
+### 2. Coding standards & tooling · in-progress
 Capture the conventions from the real scaffolded project, then install lint, formatting, type strictness, and pre commit checks so every later file follows the same rules.
 **Done when:** root `AGENTS.md` reflects the real stack, and lint, format, and type checks run clean.
-- [ ] Capture conventions + tooling choices: `/audit`
-- [ ] Install the tooling: `/develop tooling`
+- [ ] Capture conventions + tooling choices: `/audit` — still owed. Root `AGENTS.md` reads `<to be filled>` for the stack and says the tooling is not installed yet; both are now out of date.
+- [x] Install the tooling: `/develop tooling` — the scaffold already had lint, format, pre commit hooks, and CI, so this run made the linter enforce the `AGENTS.md` rules that nothing checked: no default exports (routes and `app.config.ts` excepted), no `any`, no `@ts-ignore`, no non null assertions, no parameter mutation, prefer const.
+Code in `eslint.config.js` (rules), `.lintstagedrc.json` + `.husky/pre-commit` (commit checks), `.github/workflows/ci.yml` (push checks)
 
 ### 3. Data model · needs a decision
 The core entities everything else reads and writes: a user, their profile and goal, their calculated daily target, a logged meal with its nutrition numbers, and later an exercise entry and a weight entry. This is the most expensive thing to get wrong, because changing it after people have real diaries means a migration.
