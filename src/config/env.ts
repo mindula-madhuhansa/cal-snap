@@ -34,10 +34,24 @@ const envSchema = z.object({
     .url('must be a URL, like https://<project>.supabase.co'),
 
   /**
-   * The Supabase anonymous key (spec 0004). Safe to ship: with Clerk it grants
-   * nothing on its own, because every policy now requires a valid Clerk token.
+   * The Supabase publishable key (spec 0004). Safe to ship: with Clerk it
+   * grants nothing on its own, because every policy now requires a valid
+   * Clerk token.
+   *
+   * This is the modern `sb_publishable_` key, not the legacy `anon` JWT the
+   * spec named. The legacy key is a signed JWT carrying an `anon` role, which
+   * is exactly the thing this app no longer wants to exist: it rotates only
+   * with the whole project's JWT secret, and it looks like a session token
+   * next to a real one. The publishable key is an opaque identifier that
+   * rotates on its own. Same guarantee, less to confuse.
    */
-  supabaseAnonKey: z.string().min(1, 'is required (EXPO_PUBLIC_SUPABASE_ANON_KEY)'),
+  supabasePublishableKey: z
+    .string()
+    .min(1, 'is required (EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY)')
+    .startsWith(
+      'sb_publishable_',
+      "must start with 'sb_publishable_'. The legacy anon JWT is superseded; take the publishable key from the Supabase dashboard under API keys",
+    ),
 });
 
 export type Env = z.infer<typeof envSchema>;

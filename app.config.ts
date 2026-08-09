@@ -17,7 +17,7 @@ const extra = {
   // a valid Clerk token.
   clerkPublishableKey: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
-  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  supabasePublishableKey: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   eas: {
     projectId: '04eafa92-d566-463e-8f26-df88822e4ad6',
   },

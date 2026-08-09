@@ -93,7 +93,7 @@ Create an account, sign in, stay signed in, and have your data belong to you so 
 - [ ] Test it: `/test account & sign in`
 - [ ] Review it (fresh model): `/check review account & sign in`
 - [ ] Document it: `/document account & sign in`
-Spec [0004](../specs/0004-account-and-sign-in/index.md)
+Spec [0004](../specs/0004-account-and-sign-in/index.md) · code in `src/data/schema/` (text identifiers, the jwt sub policies), `src/data/local/` (`database-name.ts`, `pending.ts`, `database-file.ts`), `src/config/env.ts` + `app.config.ts` + `.env.example` (the three variables), `supabase/migrations/`
 
 ### 6. Onboarding & daily calorie target · needs a decision
 The first run: a few plain questions about height, weight, age, sex, activity level, and whether you want to lose, hold, or gain, and from those the app calculates the calories you should eat each day. It has to feel like four taps, not a medical form.

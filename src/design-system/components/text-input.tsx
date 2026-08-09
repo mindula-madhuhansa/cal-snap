@@ -4,6 +4,7 @@ import {
   TextInput as RNTextInput,
   useWindowDimensions,
   type KeyboardTypeOptions,
+  type TextInputProps as RNTextInputProps,
 } from 'react-native';
 
 import { scaleTypeStep } from '../scale-type-step';
@@ -27,6 +28,19 @@ export type TextInputProps = {
   readonly accessibilityLabel: string;
   readonly accessibilityHint?: string;
   readonly testID?: string;
+  /** Masks the text, for a password (spec 0004, AC-16). */
+  readonly secureTextEntry?: boolean;
+  /**
+   * What this field holds, told to the platform so the password manager and
+   * the one time code autofill can offer to fill it (spec 0004, AC-16).
+   * These are two separate props because iOS and Android read different ones,
+   * and a field marked for only one of them autofills on only one platform.
+   */
+  readonly textContentType?: RNTextInputProps['textContentType'];
+  readonly autoComplete?: RNTextInputProps['autoComplete'];
+  readonly maxLength?: number;
+  /** Off for an email or a code, where an initial capital is always wrong. */
+  readonly autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 };
 
 /** `textarea.input { min-height: 90px }`, snapped to the space scale. */
@@ -43,6 +57,11 @@ export const TextInput = ({
   accessibilityLabel,
   accessibilityHint,
   testID,
+  secureTextEntry = false,
+  textContentType,
+  autoComplete,
+  maxLength,
+  autoCapitalize,
 }: TextInputProps) => {
   const { fontScale } = useWindowDimensions();
   const [focused, setFocused] = useState(false);
@@ -67,6 +86,11 @@ export const TextInput = ({
       multiline={multiline}
       keyboardType={keyboardType}
       editable={editable}
+      secureTextEntry={secureTextEntry}
+      textContentType={textContentType}
+      autoComplete={autoComplete}
+      maxLength={maxLength}
+      autoCapitalize={autoCapitalize}
       selectionColor={colors.accent}
       cursorColor={colors.accent}
       // Scaling happens once, in `scaleTypeStep`, like every other text in the

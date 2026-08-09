@@ -13,7 +13,10 @@ module.exports = defineConfig([
   // Last, so formatting is Prettier's job alone and the two never disagree.
   prettierConfig,
   {
-    ignores: ['dist/*', '.expo/*', 'node_modules/*', 'docs/design/*'],
+    // `.agents/` and `.claude/` hold vendored agent skills: someone else's
+    // code, pinned by `skills-lock.json` and replaced wholesale on update.
+    // Linting it reports problems nobody here can fix.
+    ignores: ['dist/*', '.expo/*', 'node_modules/*', 'docs/design/*', '.agents/**', '.claude/**'],
   },
   {
     rules: {

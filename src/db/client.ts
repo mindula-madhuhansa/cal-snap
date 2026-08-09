@@ -1,11 +1,33 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
+import type { SqlDatabase, SqlValue } from '@/data/local/database';
+
 import { latestVersion, pendingMigrations, type Migration } from './migrations';
 
 /**
- * The one on-device database. Every screen reads from here, which is what
- * makes the app instant; the Supabase sync (feature 5 onward) pushes and
- * pulls around it rather than sitting in front of it.
+ * The real handle, seen through the narrow port the data layer talks to.
+ *
+ * The two are the same object; only the types need reconciling. `expo-sqlite`
+ * asks for a mutable `SQLiteBindValue[]`, while the port promises `readonly
+ * SqlValue[]`, because the data layer never mutates the parameters it is
+ * handed. Spreading into a fresh array is what satisfies both, and it keeps
+ * the immutability rule where it belongs rather than loosening the port.
+ */
+export const asSqlDatabase = (db: SQLiteDatabase): SqlDatabase => ({
+  runAsync: (sql: string, params: readonly SqlValue[]) => db.runAsync(sql, [...params]),
+  getAllAsync: <T>(sql: string, params: readonly SqlValue[]) => db.getAllAsync<T>(sql, [...params]),
+  getFirstAsync: <T>(sql: string, params: readonly SqlValue[]) =>
+    db.getFirstAsync<T>(sql, [...params]),
+  withTransactionAsync: (work: () => Promise<void>) => db.withTransactionAsync(work),
+});
+
+/**
+ * The fallback name, kept only as the default argument.
+ *
+ * There is no longer one shared database: spec 0004 gives each account its
+ * own file, named for its Clerk identifier, opened on sign in and removed on
+ * sign out (see `src/data/local/database-file.ts`). Isolation on the phone is
+ * physical, so nothing should open this name in normal use.
  */
 export const DATABASE_NAME = 'calsnap.db';
 
@@ -15,7 +37,18 @@ export const DATABASE_NAME = 'calsnap.db';
  * rather than a throw and the caller can say something honest on screen.
  */
 export type OpenDatabaseResult =
-  | { readonly kind: 'ready'; readonly db: SQLiteDatabase; readonly version: number }
+  | {
+      readonly kind: 'ready';
+      readonly db: SQLiteDatabase;
+      readonly version: number;
+      /**
+       * Whether this file did not exist until now. Spec 0004 (AC-9) needs it:
+       * a brand new file for an account means this is a fresh device, so the
+       * app holds a restoring screen until the first pull finishes rather
+       * than showing an empty diary that fills in underneath the person.
+       */
+      readonly createdNow: boolean;
+    }
   | { readonly kind: 'failed'; readonly message: string };
 
 const readUserVersion = async (db: SQLiteDatabase): Promise<number> => {
@@ -66,7 +99,9 @@ export const openDatabase = async (
       };
     }
 
-    return { kind: 'ready', db, version };
+    // A file that reported version 0 before any migration ran had never been
+    // opened before, which is what "new for this account" means.
+    return { kind: 'ready', db, version, createdNow: startingVersion === 0 };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     return { kind: 'failed', message: `The local database could not be opened. ${detail}` };
