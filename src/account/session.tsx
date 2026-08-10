@@ -17,6 +17,7 @@ import { asSqlDatabase } from '@/db/client';
 
 import { clearDraining, readDraining } from './draining';
 import { destinationFor, type Destination, type ProfileLookup } from './routing';
+import { sessionEndedNotice } from './session-end';
 import { createSupabaseClient } from './supabase';
 import { createSupabaseTransport } from './supabase-transport';
 
@@ -92,6 +93,36 @@ const DrainingContext = createContext<DrainingView>({
 export const useDraining = (): DrainingView => useContext(DrainingContext);
 
 /**
+ * Why the sign in screen is showing, when it is showing for a reason other
+ * than somebody choosing to sign out (spec 0004, AC-13).
+ *
+ * Empty on an ordinary launch and after an ordinary sign out, which is the
+ * common case: there is nothing to explain, so nothing is said. It fills only
+ * when the session ended underneath a person who was using the app, and it
+ * clears the moment they are signed in again.
+ *
+ * It lives here rather than in `sync.tsx` because it is session state, and
+ * because the screen that reads it and the provider that writes it are on
+ * opposite sides of the startup gate.
+ */
+export type SessionNotice = {
+  /** The sentence to show, or nothing at all when there is nothing to say. */
+  readonly notice: string | undefined;
+  /** Called by the sync layer when a request came back with the token refused. */
+  readonly reportSessionEnded: () => void;
+  /** The person read it and moved on. */
+  readonly dismissNotice: () => void;
+};
+
+const SessionNoticeContext = createContext<SessionNotice>({
+  notice: undefined,
+  reportSessionEnded: () => undefined,
+  dismissNotice: () => undefined,
+});
+
+export const useSessionNotice = (): SessionNotice => useContext(SessionNoticeContext);
+
+/**
  * Step 3: the single `profiles` row, pulled from the server before routing.
  *
  * Deliberately server first, every sign in. Routing from the local row would
@@ -143,6 +174,7 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
   const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const [state, setState] = useState<AccountState>({ kind: 'loading' });
   const [draining, setDraining] = useState(false);
+  const [notice, setNotice] = useState<string | undefined>(undefined);
 
   /**
    * Bumped by `signBackIn`, and a dependency of the sequence below, so
@@ -254,6 +286,11 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
         await runSync(asSqlDatabase(opened.db), transport, 'sign-in');
       }
 
+      // Signed in again, so whatever the sign in screen was explaining is
+      // over. Cleared here rather than on the screen, because the screen that
+      // showed it is already gone by the time this runs (AC-13).
+      if (!cancelled) setNotice(undefined);
+
       // Step 4. One routing decision, made once, from the freshest answer
       // available.
       settle({
@@ -289,9 +326,21 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
     [draining, signBackIn, recheck],
   );
 
+  // Read at call time rather than held as a constant, so the sentence has one
+  // home (`error-messages.ts`) and this file never keeps a second copy of it.
+  const reportSessionEnded = useCallback((): void => setNotice(sessionEndedNotice()), []);
+  const dismissNotice = useCallback((): void => setNotice(undefined), []);
+
+  const noticeView = useMemo<SessionNotice>(
+    () => ({ notice, reportSessionEnded, dismissNotice }),
+    [notice, reportSessionEnded, dismissNotice],
+  );
+
   return (
     <AccountContext.Provider value={state}>
-      <DrainingContext.Provider value={drainingView}>{children}</DrainingContext.Provider>
+      <DrainingContext.Provider value={drainingView}>
+        <SessionNoticeContext.Provider value={noticeView}>{children}</SessionNoticeContext.Provider>
+      </DrainingContext.Provider>
     </AccountContext.Provider>
   );
 };

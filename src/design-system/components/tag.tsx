@@ -14,14 +14,22 @@ import { tagToneStyle, type TagTone } from './tag-tone';
 export type TagProps = {
   readonly label: string;
   readonly tone?: TagTone;
+  /**
+   * Overrides what a screen reader says. The visible label is set tight for
+   * the design, so it can carry a separator or an abbreviation that reads
+   * badly aloud; this is where the spoken sentence goes instead.
+   */
+  readonly accessibilityLabel?: string;
   readonly testID?: string;
 };
 
-export const Tag = ({ label, tone = 'neutral', testID }: TagProps) => {
+export const Tag = ({ label, tone = 'neutral', accessibilityLabel, testID }: TagProps) => {
   const resolved = tagToneStyle(tone);
 
   return (
     <View
+      accessible
+      accessibilityLabel={accessibilityLabel ?? label}
       style={[
         styles.tag,
         {

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useDraining } from '@/account/session';
+import { useDraining, useSessionNotice } from '@/account/session';
 import { useSignInOrUp } from '@/account/use-sign-in-or-up';
 import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
 import { CaptchaMount } from '@/design-system/components/captcha-mount';
 import { Field } from '@/design-system/components/field';
+import { Notice } from '@/design-system/components/notice';
 import { Screen } from '@/design-system/components/screen';
 import { TextInput } from '@/design-system/components/text-input';
 import { colors, space } from '@/design-system/theme';
@@ -32,6 +33,7 @@ const CODE_LENGTH = 6;
 export default function SignInScreen() {
   const flow = useSignInOrUp();
   const { draining, signBackIn } = useDraining();
+  const { notice, dismissNotice } = useSessionNotice();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -51,6 +53,24 @@ export default function SignInScreen() {
       </View>
 
       {/*
+        AC-13. The person did not choose to be here: their session stopped
+        being valid while they were using the app. Nothing of theirs was lost
+        and the sentence says so, because being returned to the door with no
+        explanation reads exactly like data loss.
+      */}
+      {notice === undefined ? undefined : (
+        <Notice message={notice} intent="notice" testID="session-ended-notice">
+          <Button
+            label="Dismiss"
+            variant="ghost"
+            onPress={dismissNotice}
+            accessibilityHint="Hides this message. You can still sign in below"
+            testID="session-ended-dismiss"
+          />
+        </Notice>
+      )}
+
+      {/*
         AC-11b. This phone signed out of an account with meals still owed to
         it. Nothing of that diary is readable from here, and it is being sent
         quietly in the background; saying so is more honest than a sign in
@@ -59,11 +79,10 @@ export default function SignInScreen() {
         normal session.
       */}
       {draining ? (
-        <View style={styles.notice} testID="draining-notice">
-          <AppText variant="caption" color={colors.textSubtle}>
-            Your last meals have not reached your account yet. CalSnap keeps trying, and removes
-            them from this phone once they land, or after seven days.
-          </AppText>
+        <Notice
+          message="Your last meals have not reached your account yet. CalSnap keeps trying, and removes them from this phone once they land, or after seven days."
+          intent="notice"
+          testID="draining-notice">
           <Button
             label="Sign back in to finish"
             variant="ghost"
@@ -71,16 +90,12 @@ export default function SignInScreen() {
             accessibilityHint="Opens your diary again so the meals waiting on this phone can be sent"
             testID="draining-sign-back-in"
           />
-        </View>
+        </Notice>
       ) : undefined}
 
-      {error === '' ? undefined : (
-        <View style={[styles.error, { borderLeftColor: colors.intents.failure.mark }]}>
-          <AppText variant="caption" color={colors.intents.failure.text}>
-            {error}
-          </AppText>
-        </View>
-      )}
+      {/* AC-12, AC-16. Announced, not just drawn: a sentence that appears
+          after a button press is silent to a screen reader otherwise. */}
+      {error === '' ? undefined : <Notice message={error} testID="sign-in-error" />}
 
       {flow.step.kind === 'email' ? (
         <View style={styles.form}>
@@ -211,14 +226,5 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: space[3],
-  },
-  error: {
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    paddingLeft: space[2],
-    marginBottom: space[2],
-  },
-  notice: {
-    gap: space[1],
-    marginBottom: space[2],
   },
 });

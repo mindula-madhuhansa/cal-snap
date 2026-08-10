@@ -11,6 +11,7 @@ import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
 import { Divider } from '@/design-system/components/divider';
 import { ListRow } from '@/design-system/components/list-row';
+import { Notice } from '@/design-system/components/notice';
 import { Screen } from '@/design-system/components/screen';
 import { colors } from '@/design-system/theme';
 
@@ -109,15 +110,16 @@ export default function SettingsScreen() {
         />
       ) : (
         <View>
-          {/* AC-11: meals, not rows. One meal with four items is "1 meal". */}
-          <AppText variant="body">
-            {pending === 1
-              ? '1 meal has not reached your account yet.'
-              : `${pending} meals have not reached your account yet.`}
-          </AppText>
-          <AppText variant="caption" color={colors.textSubtle}>
-            Waiting keeps them. Signing out anyway removes this diary from the phone.
-          </AppText>
+          {/* AC-11, AC-16: meals, not rows (one meal with four items is "1
+              meal"), and announced, because this appears only after the sign
+              out button was pressed and is the answer to it. */}
+          <Notice
+            message={`${
+              pending === 1
+                ? '1 meal has not reached your account yet.'
+                : `${pending} meals have not reached your account yet.`
+            } Waiting keeps them. Signing out anyway removes this diary from the phone.`}
+          />
           <Button
             label="Wait and try later"
             onPress={() => setPending(undefined)}

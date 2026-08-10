@@ -16,7 +16,8 @@ import { runSync, type SyncReason } from '@/data/remote/sync';
 import type { SyncTransport, TransportFailure } from '@/data/remote/transport';
 import { asSqlDatabase } from '@/db/client';
 
-import { useAccount } from './session';
+import { useAccount, useSessionNotice } from './session';
+import { endsSession } from './session-end';
 import { resumeDraining } from './sign-out';
 import { createSupabaseClient } from './supabase';
 import { createSupabaseTransport } from './supabase-transport';
@@ -79,6 +80,7 @@ export const useSync = (): SyncControl => useContext(SyncContext);
 export const SyncProvider = ({ children }: { readonly children: ReactNode }) => {
   const account = useAccount();
   const { getToken, signOut } = useAuth();
+  const { reportSessionEnded } = useSessionNotice();
   const [status, setStatus] = useState<SyncStatus>({ kind: 'idle' });
 
   /**
@@ -126,9 +128,32 @@ export const SyncProvider = ({ children }: { readonly children: ReactNode }) => 
             ? { kind: 'settled', at: nowIso() }
             : { kind: 'failed', failure: outcome.failure, message: outcome.message },
         );
+
+        /**
+         * AC-13. The token was refused, so every request after this one is
+         * refused too and staying on Today would mean tapping a screen that
+         * saves nothing to the account.
+         *
+         * Three things about the order here, and each of them is the
+         * criterion rather than a detail:
+         *
+         * - This runs **after** the run above finished, so a save already on
+         *   its way into the local file lands in the file. Nothing is
+         *   interrupted and nothing is rolled back.
+         * - The file is not touched. Only a successful push or the draining
+         *   deadline removes a diary, and this is neither, so the rows this
+         *   phone still owes stay here waiting for the next session.
+         * - The reason is set **before** the session ends, because ending it
+         *   re-runs the startup sequence and the sign in screen has to be
+         *   showing the sentence by the time it arrives.
+         */
+        if (endsSession(outcome)) {
+          reportSessionEnded();
+          await clerk.current.signOut();
+        }
       })();
     },
-    [db, transport],
+    [db, transport, reportSessionEnded],
   );
 
   const afterWrite = useCallback((): void => {
