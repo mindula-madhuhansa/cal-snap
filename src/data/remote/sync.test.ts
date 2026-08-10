@@ -13,6 +13,7 @@ import type { IdSource } from '../ids/uuid';
 import { deleteMeal, listMealsForDay, saveMeal } from '../local/meals';
 import { countPendingPushes } from '../local/pending';
 
+import type { RemoteRow } from './codec';
 import { pullChanges } from './pull';
 import { pushChanges } from './push';
 import { runSync } from './sync';
@@ -125,6 +126,161 @@ describe('pushChanges', () => {
 
     const [meal] = server.rowsIn('meals');
     expect(meal?.['deleted_at']).not.toBeNull();
+  });
+});
+
+/**
+ * Spec 0005. The server now owns the clock and the tombstone, so what comes
+ * back from a push is not always what went out, and the push has to believe
+ * the reply rather than its own request.
+ */
+describe('pushChanges, when the server disagrees', () => {
+  /** Reads one meal row straight out of SQLite, past every filter. */
+  const mealRow = (mealId: string): Record<string, string | number | null> =>
+    store.raw.prepare('SELECT * FROM meals WHERE id = ?').get(mealId) as Record<
+      string,
+      string | number | null
+    >;
+
+  // covers: spec 0005 AC-2, AC-4. The reply is authoritative even for a column
+  // the phone sent a different value for. `created_at` is the honest test of
+  // it, because the server freezes that column, so what comes back genuinely
+  // differs from what went out. Before this, push kept only the returned
+  // `updated_at` and the phone stayed permanently out of step with the server.
+  it('adopts a column the server refused to change, not just the timestamp', async () => {
+    const mealId = await saveOneMeal();
+    await pushChanges(store.db, server.transport);
+
+    // This phone rewrites when the meal was created and pushes that.
+    store.raw
+      .prepare('UPDATE meals SET created_at = ?, updated_at = ?, is_dirty = 1 WHERE id = ?')
+      .run('1999-01-01T00:00:00.000Z', '2026-08-09T23:00:00.000Z', mealId);
+
+    await pushChanges(store.db, server.transport);
+
+    // The server froze it, so the phone must end up holding the server's value
+    // rather than its own rejected one.
+    expect(mealRow(mealId)['created_at']).not.toBe('1999-01-01T00:00:00.000Z');
+    expect(mealRow(mealId)['created_at']).toBe(server.rowsIn('meals')[0]?.['created_at']);
+    expect(mealRow(mealId)['is_dirty']).toBe(0);
+  });
+
+  // covers: spec 0005 AC-2. Last push wins, which is the whole arbitration
+  // rule now that the server owns the clock.
+  it('lets the later push win over what another phone stored', async () => {
+    const mealId = await saveOneMeal();
+    await pushChanges(store.db, server.transport);
+
+    const stored = server.rowsIn('meals')[0];
+    if (stored === undefined) throw new Error('the server should hold the meal');
+    server.put('meals', { ...stored, note: 'theirs' });
+
+    store.raw
+      .prepare("UPDATE meals SET note = 'mine', updated_at = ?, is_dirty = 1 WHERE id = ?")
+      .run('2026-08-09T23:00:00.000Z', mealId);
+    await pushChanges(store.db, server.transport);
+
+    expect(server.rowsIn('meals')[0]?.['note']).toBe('mine');
+    expect(mealRow(mealId)['note']).toBe('mine');
+  });
+
+  // covers: spec 0005 AC-3. The case that would otherwise strand a meal: the
+  // server refuses the revival, and this is the only moment the phone can
+  // learn it. Without the write back the meal stays visible here forever,
+  // marked clean, with the watermark already past the tombstone.
+  it('takes the tombstone back when the server refuses to revive a row', async () => {
+    const mealId = await saveOneMeal();
+    await pushChanges(store.db, server.transport);
+
+    // The meal was deleted on another phone and that delete reached the server.
+    const stored = server.rowsIn('meals')[0];
+    if (stored === undefined) throw new Error('the server should hold the meal');
+    server.put('meals', { ...stored, deleted_at: '2026-08-10T09:00:00.000Z' });
+
+    // This phone never saw the delete and pushes it as live again.
+    store.raw
+      .prepare("UPDATE meals SET note = 'still here', is_dirty = 1 WHERE id = ?")
+      .run(mealId);
+    await pushChanges(store.db, server.transport);
+
+    const row = mealRow(mealId);
+    expect(row['deleted_at']).toBe('2026-08-10T09:00:00.000Z');
+    expect(row['is_dirty']).toBe(0);
+    // The whole stored row came back, so the edit sent with the revival went
+    // with it. An edit to a deleted meal has nothing to apply to.
+    expect(row['note']).toBeNull();
+    expect(server.rowsIn('meals')[0]?.['deleted_at']).toBe('2026-08-10T09:00:00.000Z');
+  });
+
+  // covers: spec 0005 AC-3. The visible half of the rule above.
+  it('stops showing a meal the server insists is deleted', async () => {
+    const mealId = await saveOneMeal();
+    await pushChanges(store.db, server.transport);
+
+    const stored = server.rowsIn('meals')[0];
+    if (stored === undefined) throw new Error('the server should hold the meal');
+    server.put('meals', { ...stored, deleted_at: '2026-08-10T09:00:00.000Z' });
+    store.raw.prepare('UPDATE meals SET is_dirty = 1 WHERE id = ?').run(mealId);
+
+    await pushChanges(store.db, server.transport);
+
+    const day = await listMealsForDay(store.db, { userId: USER_A, onDate: '2026-08-09' });
+    expect(day.kind).toBe('ok');
+    if (day.kind === 'ok') expect(day.value.meals).toHaveLength(0);
+  });
+
+  // covers: spec 0005 AC-5. The hole that existed before 0005 too: a push
+  // marked a row clean even if the person had edited it a moment earlier, so
+  // the edit was never sent at all.
+  it('leaves a row dirty when it changed while its own push was in flight', async () => {
+    const mealId = await saveOneMeal();
+
+    // The reply lands, and the person has already typed something new.
+    const editing = {
+      ...server.transport,
+      upsert: async (table: string, key: string, rows: readonly RemoteRow[]) => {
+        const result = await server.transport.upsert(table, key, rows);
+        if (table === 'meals') {
+          // Exactly what a real local write does: the content, a fresh
+          // `updated_at`, and the dirty flag together. The guard reads the
+          // stamp, so a write that moved only the content would slip past it.
+          store.raw
+            .prepare(
+              "UPDATE meals SET note = 'typed just now', updated_at = ?, is_dirty = 1 WHERE id = ?",
+            )
+            .run('2026-08-09T23:59:59.000Z', mealId);
+        }
+        return result;
+      },
+    };
+
+    await pushChanges(store.db, editing);
+
+    const row = mealRow(mealId);
+    expect(row['is_dirty']).toBe(1);
+    expect(row['note']).toBe('typed just now');
+  });
+
+  // covers: spec 0005 AC-5. Rows are read in pages and the loop used to end
+  // only on a short page. Now that a row can legitimately stay dirty, a full
+  // page that confirms nothing would be read and sent again immediately.
+  it('reports the rows the server confirmed, not the rows it sent', async () => {
+    await saveOneMeal();
+
+    const refusing = {
+      ...server.transport,
+      upsert: async (table: string, key: string, rows: readonly RemoteRow[]) => {
+        await server.transport.upsert(table, key, rows);
+        // As if every row had been edited mid flight: nothing may be confirmed.
+        return { kind: 'ok' as const, rows: [] };
+      },
+    };
+
+    const result = await pushChanges(store.db, refusing);
+
+    expect(result.kind).toBe('pushed');
+    if (result.kind === 'pushed') expect(result.rows).toBe(0);
+    expect(await countPendingPushes(store.db)).toBeGreaterThan(0);
   });
 });
 
