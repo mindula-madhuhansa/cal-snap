@@ -2,10 +2,13 @@
 
 _Steps derived from spec 0004's acceptance criteria and its value sourcing table. `/check verify` runs these; `/test` locks the durable ones._
 
-Two things are owed before the sync steps below can pass on a phone, and both are dashboard work rather than code:
+**The dashboard prerequisites are done as of 10 August 2026**, which unblocks every sync step below:
 
-- Clerk registered with Supabase as a third party auth provider, with `role: authenticated` on the session token. Without it every Supabase request is refused and the marker sits on "Offline".
-- Nothing else. The three environment variables and the Postgres identity change are already live.
+- Supabase has Clerk registered as a third party auth provider, domain `https://superb-albacore-29.clerk.accounts.dev`, showing `ENABLED`.
+- Clerk's `__session` token template carries `{"role": "authenticated"}`, with the Supabase managed integration attached.
+- Confirmed independently: that Clerk domain serves an RS256 signing key at `/.well-known/jwks.json` and an OIDC issuer matching itself, which is what Supabase verifies an incoming token's signature against.
+
+The three environment variables and the Postgres identity change were already live.
 
 ## UI / manual
 
@@ -65,7 +68,7 @@ Two things are owed before the sync steps below can pass on a phone, and both ar
 ## Value sourcing (one step per row, so a mis sourced value is caught)
 
 - [ ] Every row written on the device carries `user_id` equal to the Clerk `sub` → read a saved row and compare it with the identifier in Settings → AC-7
-- [ ] A Supabase request carrying only the publishable key, with no Clerk token, returns zero rows from every table → AC-7, AC-15
+- [x] A Supabase request carrying only the publishable key, with no Clerk token, returns zero rows from every table → AC-7, AC-15 · **proven on 10 August 2026** against the live project. Run with a real row present, not against empty tables, which is the version of this check that actually proves something: a `meals` row was inserted through the service role, then `GET /rest/v1/meals?select=*` with only `apikey: sb_publishable_...` returned `[]` at HTTP 200 (zero rows, not an error, exactly as AC-7 words it), and so did the same request filtered to that exact `user_id`. A `POST` with the same key was refused with `42501 new row violates row-level security policy`, and a forged bearer token with `PGRST301`. The probe row was deleted and all six tables are back to zero
 - [ ] The local file is named `calsnap-<clerk user id>.db`, and signing in as a second account on the same phone opens a different file and leaves the first untouched → AC-8
 - [ ] A table with no `sync_state` row pulls from the beginning of time → covered by a test, and visible on a fresh device as the full diary arriving → AC-9
 - [ ] The pull watermark advances after a pull → a second pull with nothing changed transfers nothing → AC-9
@@ -78,20 +81,25 @@ Two things are owed before the sync steps below can pass on a phone, and both ar
 
 ## Commands
 
-- [ ] `npm test` → 383 passing, including the sync rules, the two migration fingerprints, and the session ending rule
-- [ ] `npm run typecheck` → clean across all three projects
-- [ ] `npm run lint` → clean
-- [ ] `npm run format` → clean
+- [x] `npm test` → 383 passing, including the sync rules, the two migration fingerprints, and the session ending rule · 383 across 34 files on 10 August 2026
+- [x] `npm run typecheck` → clean across all three projects · clean
+- [x] `npm run lint` → clean · clean
+- [x] `npm run format` → clean · clean
+- [x] `npx expo export --platform ios` → the bundle builds, so every import resolves including `@clerk/expo`, `@clerk/expo/token-cache`, `@supabase/supabase-js`, and `expo-secure-store` · one 6.5MB bundle, no unresolved module. Not a substitute for running the app, but it rules out a broken module graph before you build to a phone
 
 ## Acceptance-criteria coverage
 
 - AC-1, AC-2, AC-4, AC-5, AC-6, AC-14 · covered by the door steps, confirmed by hand on 9 August 2026
 - AC-3 · withdrawn on 9 August 2026, nothing to verify
-- AC-7, AC-8, AC-15 · covered by the value sourcing steps, and the isolation step is the one that matters most
+- AC-7 · **the isolation half is proven** on the live database (schema, policies, and a real unauthenticated request against a table holding a row). The on device half, that every row this app writes carries the Clerk `sub`, still needs the phone
+- AC-15 · **the negative half is proven**: the publishable key alone reads nothing, writes nothing, and a forged token is rejected. The positive half, that every request the app sends carries the Clerk token, needs the app running
+- AC-8 · needs the phone
 - AC-9, AC-10, AC-11, AC-11b · covered by the sync steps, built and gate green, not yet run on a phone
 - AC-12, AC-13, AC-16 · covered by the slice 3 steps, built and gate green, not yet run on a phone. The screen reader half needs both platforms, and the session ending step needs the Clerk dashboard open beside the phone
 
 ## Known gaps at the time of writing
 
-- Specs 0001 and 0002 still describe Supabase Auth and `auth.uid()`, and the Clerk conventions still owe a `src/account/AGENTS.md`. Build plan task 23, and the only part of slice 3 not built: amending a spec is `/architect`'s to write and an area `AGENTS.md` is `/sync`'s, neither is `/develop`'s.
+- ~~Specs 0001 and 0002 still describe Supabase Auth and `auth.uid()`, and the Clerk conventions still owe a `src/account/AGENTS.md`.~~ Both closed on 10 August 2026, by `/architect` and `/sync` respectively.
+- **Everything that needs a phone is still unverified.** This app cannot run in Expo Go, so every screen, every failure message, the whole sync path, and the accessibility sweep need a development build on a real device. The `/check verify` run on 10 August proved the database, the trust wiring, and the gate, and could not exercise a single screen. Treat the unticked boxes above as genuinely unknown rather than probably fine.
+- One thing worth knowing before the phone pass: the live server returns `42501` for a refused row and `PGRST301` for a bad token, which are exactly the two codes `src/account/supabase-transport.ts` maps to `session-ended`. That mapping is therefore checked against real server behaviour, not guessed. It also means a missing `role: authenticated` claim would sign a person out rather than look like a network error, so if sign in starts bouncing people back to the door, suspect the token template first.
 - Postgres does not stamp `updated_at` on receipt and does not keep a tombstone against a live incoming row. Both are spec 0002 rules with no trigger behind them, so the pushing device currently wins a conflict. The sticky delete rule **is** enforced on the pulling device, so a delete is not undone locally; it is the server copy that can be revived by another phone's late push. Adding the trigger changes the generated Postgres migration that has already been applied, so it is a decision: `/architect account & sync arbitration`.
