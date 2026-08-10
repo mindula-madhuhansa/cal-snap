@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
+import { SyncMarker } from '@/account/sync-marker';
 import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
 import { Card } from '@/design-system/components/card';
@@ -82,7 +83,11 @@ export default function TodayScreen() {
         </AppText>
       </View>
 
-      <Tag label="Sample data" tone="outline" />
+      <View style={styles.markers}>
+        <Tag label="Sample data" tone="outline" />
+        {/* AC-9. Quiet while a pull is running, and honest when it failed. */}
+        <SyncMarker />
+      </View>
 
       <Card kicker="Not your day yet" title="Every figure here is a placeholder">
         <AppText variant="bodySmall" color={colors.textSubtle}>
@@ -165,6 +170,12 @@ export default function TodayScreen() {
 const styles = StyleSheet.create({
   masthead: {
     gap: space[1],
+  },
+  markers: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space[2],
   },
   hero: {
     alignItems: 'center',

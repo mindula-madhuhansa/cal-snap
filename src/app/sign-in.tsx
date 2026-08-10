@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { useDraining } from '@/account/session';
 import { useSignInOrUp } from '@/account/use-sign-in-or-up';
 import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
@@ -30,6 +31,7 @@ const CODE_LENGTH = 6;
 
 export default function SignInScreen() {
   const flow = useSignInOrUp();
+  const { draining, signBackIn } = useDraining();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -47,6 +49,30 @@ export default function SignInScreen() {
           Snap a meal, see what is left of your day.
         </AppText>
       </View>
+
+      {/*
+        AC-11b. This phone signed out of an account with meals still owed to
+        it. Nothing of that diary is readable from here, and it is being sent
+        quietly in the background; saying so is more honest than a sign in
+        screen that looks like any other while a health record is still on
+        disk. Signing back in adopts it and finishes the job from inside a
+        normal session.
+      */}
+      {draining ? (
+        <View style={styles.notice} testID="draining-notice">
+          <AppText variant="caption" color={colors.textSubtle}>
+            Your last meals have not reached your account yet. CalSnap keeps trying, and removes
+            them from this phone once they land, or after seven days.
+          </AppText>
+          <Button
+            label="Sign back in to finish"
+            variant="ghost"
+            onPress={signBackIn}
+            accessibilityHint="Opens your diary again so the meals waiting on this phone can be sent"
+            testID="draining-sign-back-in"
+          />
+        </View>
+      ) : undefined}
 
       {error === '' ? undefined : (
         <View style={[styles.error, { borderLeftColor: colors.intents.failure.mark }]}>
@@ -189,6 +215,10 @@ const styles = StyleSheet.create({
   error: {
     borderLeftWidth: StyleSheet.hairlineWidth,
     paddingLeft: space[2],
+    marginBottom: space[2],
+  },
+  notice: {
+    gap: space[1],
     marginBottom: space[2],
   },
 });

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { createIdSource, type IdSource } from '../../src/data/ids/uuid';
 import type { SqlDatabase, SqlValue } from '../../src/data/local/database';
-import { coreDataModelSql } from '../../src/data/local/migrations';
+import { coreDataModelSql, syncStateSql } from '../../src/data/local/migrations';
 
 /**
  * Shared setup for the data access layer tests.
@@ -25,6 +25,7 @@ export const openTestDatabase = (): TestDatabase => {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON');
   raw.exec(coreDataModelSql);
+  raw.exec(syncStateSql);
 
   const db: SqlDatabase = {
     runAsync: async (sql: string, params: readonly SqlValue[]) => raw.prepare(sql).run(...params),

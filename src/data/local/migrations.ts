@@ -1,5 +1,6 @@
 import { sha1 } from '../ids/sha1';
 import { releaseOneTables } from '../schema/tables/all';
+import { syncState } from '../schema/tables/sync-state';
 import { toSqlite } from '../schema/to-sqlite';
 
 /**
@@ -27,6 +28,19 @@ const digestOf = (text: string): string =>
 /** The digest of `coreDataModelSql` as it shipped. Never update this by hand. */
 export const CORE_DATA_MODEL_FINGERPRINT: string = 'e930ebeca7dcf6b28c76dc9c9c90e3fdc081cc59';
 
+/**
+ * SQLite migration 3: the `sync_state` watermark table, which is where a pull
+ * remembers how far it got (spec 0002; spec 0004 slice 2).
+ *
+ * It is a separate migration rather than a seventh table in migration 2 for
+ * the reason above: migration 2 has shipped, so it is never edited. Same
+ * generator, same declarations, its own fingerprint.
+ */
+export const syncStateSql: string = toSqlite([syncState]);
+
+/** The digest of `syncStateSql` as it shipped. Never update this by hand. */
+export const SYNC_STATE_FINGERPRINT: string = '34f698be2c75cb8417a9c57fe74c1951a70048a5';
+
 export type FingerprintCheck =
   | { readonly kind: 'unchanged' }
   | { readonly kind: 'changed'; readonly expected: string; readonly actual: string };
@@ -40,6 +54,14 @@ export const checkMigrationFingerprint = (): FingerprintCheck => {
   return actual === CORE_DATA_MODEL_FINGERPRINT
     ? { kind: 'unchanged' }
     : { kind: 'changed', expected: CORE_DATA_MODEL_FINGERPRINT, actual };
+};
+
+/** The same guard for migration 3, which is generated and shipped in its turn. */
+export const checkSyncStateFingerprint = (): FingerprintCheck => {
+  const actual = digestOf(syncStateSql);
+  return actual === SYNC_STATE_FINGERPRINT
+    ? { kind: 'unchanged' }
+    : { kind: 'changed', expected: SYNC_STATE_FINGERPRINT, actual };
 };
 
 export { digestOf };

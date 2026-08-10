@@ -8,7 +8,7 @@
  *   - Each one runs inside a transaction, so a failure leaves the previous
  *     version intact rather than a half-applied schema.
  */
-import { coreDataModelSql } from '@/data/local/migrations';
+import { coreDataModelSql, syncStateSql } from '@/data/local/migrations';
 
 export type Migration = {
   readonly version: number;
@@ -47,7 +47,19 @@ const coreDataModel: Migration = {
   sql: coreDataModelSql,
 };
 
-export const migrations: readonly Migration[] = [initial, coreDataModel];
+/**
+ * The pull watermark table (spec 0002's `sync_state`), which arrives with the
+ * sync functions rather than with the diary. Its SQL is generated from the
+ * same declarations, and it is its own migration because migration 2 has
+ * shipped and a shipped migration is never edited.
+ */
+const syncStateTable: Migration = {
+  version: 3,
+  name: 'sync-state',
+  sql: syncStateSql,
+};
+
+export const migrations: readonly Migration[] = [initial, coreDataModel, syncStateTable];
 
 /** The version the database should be at once every migration has run. */
 export const latestVersion: number = migrations.length;

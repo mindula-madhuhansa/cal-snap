@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AccountProvider, useAccount } from '@/account/session';
+import { SyncProvider } from '@/account/sync';
 // Importing this validates the app's configuration once, at startup, and
 // throws loudly if a value is missing or malformed (spec 0001, AC-7b).
 import { env } from '@/config/env';
@@ -94,7 +95,12 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <StatusBar style="dark" />
           <AccountProvider>
-            <Gate />
+            {/* Sync sits inside the account so it can see the open file, and
+                outside the gate so a draining account keeps retrying while the
+                sign in screen is showing (AC-10, AC-11b). */}
+            <SyncProvider>
+              <Gate />
+            </SyncProvider>
           </AccountProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

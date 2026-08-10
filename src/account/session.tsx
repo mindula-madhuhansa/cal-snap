@@ -1,11 +1,24 @@
 import { useAuth } from '@clerk/expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { openUserDatabase } from '@/data/local/database-file';
+import { runSync } from '@/data/remote/sync';
+import { asSqlDatabase } from '@/db/client';
 
+import { clearDraining, readDraining } from './draining';
 import { destinationFor, type Destination, type ProfileLookup } from './routing';
 import { createSupabaseClient } from './supabase';
+import { createSupabaseTransport } from './supabase-transport';
 
 /**
  * The session state machine (spec 0004, "State transitions"), and the strict
@@ -47,6 +60,36 @@ export type AccountState =
 const AccountContext = createContext<AccountState>({ kind: 'loading' });
 
 export const useAccount = (): AccountState => useContext(AccountContext);
+
+/**
+ * The draining case, which is the one state where Clerk and the app disagree
+ * on purpose (spec 0004, AC-11b).
+ *
+ * Clerk still holds a session, because the rows this phone owes the account
+ * cannot be pushed without one. The app shows the sign in screen anyway, and
+ * no screen reads from the file. `signBackIn` is the way out: the same person
+ * saying "that was me", which adopts the file and lets it drain from inside a
+ * normal session.
+ */
+export type DrainingView = {
+  readonly draining: boolean;
+  readonly signBackIn: () => void;
+  /**
+   * Re-runs the startup sequence. Sign out anyway calls it, which is what
+   * makes the phone look signed out **immediately** rather than at the next
+   * launch: the sequence reads the draining record it just wrote and refuses
+   * to open the file.
+   */
+  readonly recheck: () => void;
+};
+
+const DrainingContext = createContext<DrainingView>({
+  draining: false,
+  signBackIn: () => undefined,
+  recheck: () => undefined,
+});
+
+export const useDraining = (): DrainingView => useContext(DrainingContext);
 
 /**
  * Step 3: the single `profiles` row, pulled from the server before routing.
@@ -99,6 +142,14 @@ const readLocalProfile = async (db: SQLiteDatabase, userId: string): Promise<Pro
 export const AccountProvider = ({ children }: { readonly children: ReactNode }) => {
   const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const [state, setState] = useState<AccountState>({ kind: 'loading' });
+  const [draining, setDraining] = useState(false);
+
+  /**
+   * Bumped by `signBackIn`, and a dependency of the sequence below, so
+   * adopting a draining file re-runs the startup steps rather than needing a
+   * relaunch.
+   */
+  const [attempt, setAttempt] = useState(0);
 
   /**
    * `getToken` is a fresh function on every render, so it must not be an
@@ -152,6 +203,20 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
     }
 
     void (async () => {
+      /**
+       * Step 1b. An account this phone signed out of, with work still owed, is
+       * draining: Clerk still has a session but the person is not signed in
+       * here, and no screen may read that file (AC-11b). Read before anything
+       * is opened, because the answer decides whether to open anything at all.
+       */
+      const record = await readDraining();
+      if (record !== undefined && record.userId === userId) {
+        if (!cancelled) setDraining(true);
+        settle({ kind: 'signed-out' });
+        return;
+      }
+      if (!cancelled) setDraining(false);
+
       // Step 2. Needs step 1's identifier, so it cannot run alongside it.
       const opened = await openUserDatabase(userId);
       if (opened.kind === 'failed') {
@@ -169,6 +234,26 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
       const lookup =
         fromServer.kind === 'fresh' ? fromServer : await readLocalProfile(opened.db, userId);
 
+      /**
+       * Step 3b, on a fresh device only: hold the restoring screen until the
+       * first pull has actually finished (AC-9).
+       *
+       * On a phone that already has the file this is skipped entirely, and the
+       * ordinary foreground sync covers it behind the syncing marker. Holding
+       * there too would put a loading screen in front of a diary the person
+       * can already read, which is the opposite of local first.
+       *
+       * A failure here does not hold anybody hostage: the diary is empty
+       * rather than wrong, the sequence carries on, and Today says it is
+       * offline.
+       */
+      if (opened.createdNow) {
+        const transport = createSupabaseTransport(
+          createSupabaseClient((...args) => getTokenRef.current(...args)),
+        );
+        await runSync(asSqlDatabase(opened.db), transport, 'sign-in');
+      }
+
       // Step 4. One routing decision, made once, from the freshest answer
       // available.
       settle({
@@ -182,9 +267,31 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
     return () => {
       cancelled = true;
     };
-    // Only the three values that describe the session. `getToken` is
-    // deliberately absent; see the ref above.
-  }, [isLoaded, isSignedIn, userId]);
+    // Only the values that describe the session, plus `attempt`, which is how
+    // signing back into a draining account restarts the sequence. `getToken`
+    // is deliberately absent; see the ref above.
+  }, [isLoaded, isSignedIn, userId, attempt]);
 
-  return <AccountContext.Provider value={state}>{children}</AccountContext.Provider>;
+  const signBackIn = useCallback((): void => {
+    void (async () => {
+      // The file is adopted, not removed: the rows it owes are pushed from
+      // inside the session now, like any other unpushed work.
+      await clearDraining();
+      setDraining(false);
+      setAttempt((previous) => previous + 1);
+    })();
+  }, []);
+
+  const recheck = useCallback((): void => setAttempt((previous) => previous + 1), []);
+
+  const drainingView = useMemo<DrainingView>(
+    () => ({ draining, signBackIn, recheck }),
+    [draining, signBackIn, recheck],
+  );
+
+  return (
+    <AccountContext.Provider value={state}>
+      <DrainingContext.Provider value={drainingView}>{children}</DrainingContext.Provider>
+    </AccountContext.Provider>
+  );
 };

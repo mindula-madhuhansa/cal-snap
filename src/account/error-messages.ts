@@ -1,4 +1,5 @@
 import { devWarn } from '@/config/dev-warning';
+import type { TransportFailure } from '@/data/remote/transport';
 
 /**
  * Turning a failure into a sentence a person can act on (spec 0004, AC-12).
@@ -186,5 +187,29 @@ export const failureMessage = (error: unknown): FailureMessage => {
 const reportUnmapped = (error: unknown): void => {
   devWarn('[account] unmapped sign in failure:', JSON.stringify(error, null, 2));
 };
+
+/**
+ * The same job for sync (spec 0004, AC-12). A sync failure is quieter than a
+ * sign in failure, because it happens behind a screen a person is already
+ * using, but it still says something true rather than nothing.
+ *
+ * `session-ended` reuses the sign in sentence above, because it is the same
+ * event seen from a different screen and a person should not be told two
+ * different things about it (AC-13).
+ */
+const SYNC: Readonly<Record<TransportFailure, FailureMessage>> = {
+  offline: {
+    message: 'Your meals are saved on this phone and will reach your account when you are online.',
+    retryable: true,
+  },
+  'session-ended': BY_CODE['session_ended'] ?? UNKNOWN,
+  rejected: {
+    message:
+      'Some meals could not be saved to your account. They are safe on this phone and CalSnap will try again.',
+    retryable: true,
+  },
+};
+
+export const syncFailureMessage = (reason: TransportFailure): FailureMessage => SYNC[reason];
 
 export { NETWORK as networkFailureMessage, UNKNOWN as unknownFailureMessage };
