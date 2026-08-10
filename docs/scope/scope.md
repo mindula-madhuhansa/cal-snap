@@ -16,7 +16,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 3 | Data model | Foundation | in-progress |
 | 4 | Design system & UI foundation | Foundation | done |
 | 5 | Account & sign in | Release 1 | in-progress |
-| 6 | Onboarding & daily calorie target | Release 1 | planned |
+| 6 | Onboarding & daily calorie target | Release 1 | in-progress |
 | 7 | Snap a meal: AI nutrition scan | Release 1 | planned |
 | 8 | Review & save a meal | Release 1 | planned |
 | 9 | Today screen | Release 1 | planned |
@@ -99,10 +99,18 @@ Create an account, sign in, stay signed in, and have your data belong to you so 
 - [ ] Document it: `/document account & sign in`
 Spec [0004](../specs/0004-account-and-sign-in/index.md) · code in `src/data/schema/` (text identifiers, the jwt sub policies, `tables/sync-state.ts`, `to-postgres.ts`'s trigger emitter), `src/data/local/` (`database-name.ts`, `pending.ts`, `database-file.ts`, migration 3), `src/data/remote/` (`push.ts`, `pull.ts`, `sync.ts`, the transport port and the codec), `src/account/` (the session gate, sign in, sync triggers, sign out and draining, `session-end.ts`, `sync-marker-label.ts`), `src/design-system/components/notice.tsx` + `captcha-mount.tsx`, `src/config/env.ts` + `app.config.ts` + `.env.example` (the three variables), `supabase/migrations/`, conventions in `src/account/AGENTS.md`
 
-### 6. Onboarding & daily calorie target · needs a decision
+### 6. Onboarding & daily calorie target · in-progress
 The first run: a few plain questions about height, weight, age, sex, activity level, and whether you want to lose, hold, or gain, and from those the app calculates the calories you should eat each day. It has to feel like four taps, not a medical form.
 **Done when:** a new person finishes setup in under a minute and lands on a daily target they can see and change; the calculation and its formula are recorded; unsafe targets are floored rather than shown; the answers are saved so setup never repeats.
-- [ ] Design it (spec): `/architect onboarding & daily calorie target`
+- [x] Design it (spec): `/architect onboarding & daily calorie target` — chose Mifflin-St Jeor scaled by activity and pace, floored at 1200 or 1500 kcal, with a dated override table so the number can be changed without ever rewriting a past day. A cross check on a second model caught a silent data loss bug in the first draft: the override table was day keyed, which would have made spec 0005's sticky tombstone refuse every set-clear-set sequence. Fixed to a version 7 identifier with no unique index before any code was written.
+- [ ] Build it: `/develop onboarding & daily calorie target`
+   - [ ] The number, headless: the two new table declarations with SQLite migration 4 and the Postgres file, the pure Mifflin-St Jeor calculation with its multipliers and floor, and the override resolver wired into `getOrCreateDailyTarget` (AC-7, AC-8, AC-10, AC-10b, AC-11, AC-13, AC-14, AC-16)
+   - [ ] A setup a person can finish: the draft store and the one transaction that completes it, the eight question screens with progress and a back step, the locale unit default, the consent step, and the result screen (AC-1..AC-6, AC-9, AC-15, AC-17)
+   - [ ] A number you can change: `updateProfileAnswers` and the "Your goal" section in Settings, with the change starting tomorrow (AC-10, AC-11, AC-12)
+   - [ ] Make it hold: every failure message written out, the accessibility sweep across all nine screens, and a second device confirmed on a development build (AC-1, AC-6, AC-13, AC-15)
+- [ ] Verify it: `/check verify onboarding & daily calorie target`
+- [ ] Test it: `/test onboarding & daily calorie target`
+Spec [0006](../specs/0006-onboarding-daily-calorie-target/index.md)
 
 ### 7. Snap a meal: AI nutrition scan · needs a decision
 Point the camera at food, and get back what it is plus calories, protein, carbs, and fat. This is the whole promise of the product and the one feature that must feel like magic.
@@ -169,6 +177,7 @@ Out of scope for the current build pass, kept so the plan stays honest.
 - **Saved and repeat meals**: log the breakfast you eat every day in one tap
 - **Works offline**: log and view without a connection, syncing later · needs a decision
 - **Account settings, including changing your password**: spec 0004 deliberately left this out of release 1, because an emailed code means nobody is ever locked out, but there is currently no way to change a password once set · from spec 0004
+- **Tombstone revival on the two day keyed tables**: `weight_entries` and `daily_targets` both use a deterministic identifier derived from the date, and both are soft deletable. Deleting a weigh in and adding another the same day produces a push that spec 0005's sticky tombstone refuses, and `pushChanges` writes that tombstone back with nothing failing, so the entry disappears silently. Spec 0006 hit the same shape on its own override table and designed around it, which is what surfaced this. Needs a decision · from spec 0006
 - **A check that the specs match the live database**: nothing verifies that a spec's server side claims are true of Postgres. Three such claims in spec 0002 survived a build, a test pass, a fresh model review, and a run on a real phone, because everything that could have caught them was reading the same text rather than the database · from spec 0005
 - **More languages**: English only for now, with text kept out of the screens so this stays cheap
 

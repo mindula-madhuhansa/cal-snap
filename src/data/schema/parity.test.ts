@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseTable, verifySchemaParity } from './parity';
-import { tableToPostgres } from './to-postgres';
+import { tableToPostgres, toPostgres } from './to-postgres';
 import { tableToSqlite } from './to-sqlite';
-import { releaseOneTables } from './tables/all';
+import {
+  onboardingDraft,
+  onboardingTables,
+  releaseOneTables,
+  syncedTableDeclarations,
+} from './tables/all';
 import { decimal, integer, oneOf, text, timestamptz, uuid, type Table } from './types';
 
 /**
@@ -40,6 +45,30 @@ describe('verifySchemaParity on the real schema', () => {
       expect(result.tablesCompared).toBe(6);
       expect(result.columnsCompared).toBe(87);
     }
+  });
+
+  // covers: AC-1, and spec 0006 AC-13. The parity check reads the full synced
+  // list rather than release 1's, so a table a later spec adds is compared
+  // without anyone having to remember to add it here.
+  it('finds every synced table in agreement, including target_overrides', () => {
+    const result = verifySchemaParity(syncedTableDeclarations);
+
+    expect(result.kind).toBe('match');
+    if (result.kind === 'match') {
+      expect(result.tablesCompared).toBe(7);
+    }
+  });
+
+  // covers: spec 0006 AC-13. The draft is local only, so parity has nothing to
+  // compare: it must be absent from the Postgres output entirely, not merely
+  // matching on both sides.
+  it('leaves the onboarding draft out of Postgres altogether', () => {
+    expect(onboardingDraft.presence).toBe('sqlite');
+    expect(syncedTableDeclarations).not.toContain(onboardingDraft);
+    // The migration the generator actually writes, not one table in isolation:
+    // `toPostgres` is what drops a `presence: 'sqlite'` table on the floor.
+    expect(toPostgres(onboardingTables)).not.toContain('onboarding_draft');
+    expect(toPostgres(onboardingTables)).toContain('create table public.target_overrides (');
   });
 });
 
