@@ -81,11 +81,18 @@ The three environment variables and the Postgres identity change were already li
 
 ## Commands
 
-- [x] `npm test` → 383 passing, including the sync rules, the two migration fingerprints, and the session ending rule · 383 across 34 files on 10 August 2026
+- [x] `npm test` → 431 passing across 36 files on 10 August 2026, after `/test` and `/debug` (was 383). One caveat worth knowing: a single run immediately after a bulk `prettier --write` collapsed with all 36 files failing to import and zero tests collected. Five consecutive runs since have been green and it has not reproduced, so it looks like a Vite transform cache race on Windows rather than a code fault. If you ever see it, rerun before believing it
 - [x] `npm run typecheck` → clean across all three projects · clean
 - [x] `npm run lint` → clean · clean
 - [x] `npm run format` → clean · clean
 - [x] `npx expo export --platform ios` → the bundle builds, so every import resolves including `@clerk/expo`, `@clerk/expo/token-cache`, `@supabase/supabase-js`, and `expo-secure-store` · one 6.5MB bundle, no unresolved module. Not a substitute for running the app, but it rules out a broken module graph before you build to a phone
+
+## Transport classification, driven for real (10 August 2026)
+
+Not hand written strings: a real Supabase client wrapped in the real `createSupabaseTransport`, pointed at a host that does not resolve and then at the live project with no Clerk token. Both went through the whole module.
+
+- [x] A real DNS failure → `{"kind":"failed","reason":"offline","message":"Your meals are saved on this phone and will reach your account when you are online."}` → AC-12 · this is the case `/debug` fixed the same day; before the fix the identical failure came back `rejected`
+- [x] The live project, publishable key only, no Clerk token, on an upsert → `{"kind":"failed","reason":"session-ended","message":"You were signed out. Your meals are safe on this phone. Please sign in again."}` → AC-13, AC-15 · the `42501` path proven end to end through the real module against the real database, and the refused write left the tables at zero rows
 
 ## Acceptance-criteria coverage
 
