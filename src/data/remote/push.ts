@@ -89,6 +89,14 @@ const writeBackSql = (table: SyncTable): string =>
  * in `../local/meals.ts`). A future write that dirties a row without moving
  * the stamp would slip past this check and have its edit overwritten by the
  * reply, which is the exact bug this guard exists to prevent.
+ *
+ * **And on one from the port**: this check and the write that follows it are
+ * two statements, so they are only safe because `withTransactionAsync`
+ * serialises every other writer on the connection while they run. That is
+ * documented on `SqlDatabase` in `../local/database.ts`. It is a separate
+ * statement rather than a `WHERE updated_at IS ?` on the update itself only
+ * because `runAsync` reports no affected row count, so a conditional update
+ * could not say whether it matched.
  */
 const stillUnchanged = async (
   db: SqlDatabase,
