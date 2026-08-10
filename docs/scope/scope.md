@@ -61,9 +61,11 @@ The core entities everything else reads and writes: a user, their profile and go
    - [x] The pure calculations: portion rescaling, the local day resolver, the meal type guess, unit conversion (AC-3, AC-6, AC-12)
    - [x] Per user database file lifecycle, opened on sign in and removed on sign out (AC-11)
    - [ ] The cloud half: Postgres migration with row level security, sync, account deletion, retention sweep (AC-2, AC-5, AC-10, AC-14, AC-17) — the Postgres migration is applied and row level security is live and confirmed on all six tables, and **sync is built** (feature 5 brought `src/data/remote/` and its three triggers), though not yet run on a phone. Two remain: account deletion, which lost its `auth.users` cascade to the Clerk decision and now needs a `user.deleted` webhook (feature 10), and the retention sweep, which still has no scheduler
+   - [ ] Arbitration, the server half: the two trigger functions generated into a second migration and applied, so Postgres owns `updated_at`, freezes `created_at`, and refuses to revive a tombstone (spec 0005, AC-1, AC-3, AC-4, AC-6, AC-7)
+   - [ ] Arbitration, the phone half: `pushChanges` writes the returned row back guarded on what it sent, with the batch stopping rule, plus the live proof through the Supabase MCP (spec 0005, AC-2, AC-3, AC-5, AC-8)
 - [ ] Verify it: `/check verify data model`
 - [x] Test it: `/test data model` — 238 Vitest tests across 16 files, each pinned criterion tagged `covers: AC-N`. Replaced the earlier `check:schema` and `check:data` scripts, so `npm test` is now the single gate in CI.
-Spec [0002](../specs/0002-data-model/index.md) · code in `src/data/` (`schema/`, `calculations/`, `ids/`, `local/`), `src/db/migrations.ts`, `supabase/migrations/`, tests beside the source plus `test/support/`
+Spec [0002](../specs/0002-data-model/index.md) and [0005](../specs/0005-sync-arbitration/index.md) · code in `src/data/` (`schema/`, `calculations/`, `ids/`, `local/`), `src/db/migrations.ts`, `supabase/migrations/`, tests beside the source plus `test/support/`
 
 ### 4. Design system & UI foundation · done
 The visual language and the base building blocks: type scale, color, spacing, buttons, cards, inputs, the tab bar, and the empty and loading states. This is the feature that decides whether people keep the app, so it is a foundation and not a coat of paint applied later.
@@ -167,6 +169,7 @@ Out of scope for the current build pass, kept so the plan stays honest.
 - **Saved and repeat meals**: log the breakfast you eat every day in one tap
 - **Works offline**: log and view without a connection, syncing later · needs a decision
 - **Account settings, including changing your password**: spec 0004 deliberately left this out of release 1, because an emailed code means nobody is ever locked out, but there is currently no way to change a password once set · from spec 0004
+- **A check that the specs match the live database**: nothing verifies that a spec's server side claims are true of Postgres. Three such claims in spec 0002 survived a build, a test pass, a fresh model review, and a run on a real phone, because everything that could have caught them was reading the same text rather than the database · from spec 0005
 - **More languages**: English only for now, with text kept out of the screens so this stays cheap
 
 ## Legend
