@@ -31,6 +31,11 @@ exists to make.
 
 ### 🟠 A failed sign out is never shown to the person, `src/app/(tabs)/settings.tsx:69-85`
 
+> **Fixed on 10 August 2026 by `/debug`.** The decision moved into `src/account/sign-out-outcome.ts`
+> as an exhaustive `switch` with a `never` guard (proven to fail typecheck when a case is removed),
+> the message now renders through `Notice`, and `recheck()` no longer runs after a failure. Nine tests
+> beside it, in a file the suite can actually reach. The finding is kept below as the record.
+
 **Problem**: `signOutSafely` can return `{ kind: 'failed', message }` (`src/account/sign-out.ts:52`,
 reached when `removeUserDatabase` throws inside `deleteDatabaseAsync`, e.g. a disk error). `runSignOut`
 in `settings.tsx` only branches on `'pending'` and `'removed'`:

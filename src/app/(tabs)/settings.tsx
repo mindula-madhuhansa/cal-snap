@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { useAccount, useDraining } from '@/account/session';
 import { signOutSafely } from '@/account/sign-out';
+import { actionForSignOut } from '@/account/sign-out-outcome';
 import { createSupabaseClient } from '@/account/supabase';
 import { createSupabaseTransport } from '@/account/supabase-transport';
 import { asSqlDatabase } from '@/db/client';
@@ -35,6 +36,7 @@ export default function SettingsScreen() {
   const account = useAccount();
   const { recheck } = useDraining();
   const [pending, setPending] = useState<number | undefined>(undefined);
+  const [failure, setFailure] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
 
   // AC-14. The email lives in Clerk and is deliberately not copied into
@@ -53,35 +55,45 @@ export default function SettingsScreen() {
   const runSignOut = (force: boolean) => (): void => {
     if (account.kind !== 'ready') return;
     setBusy(true);
+    setFailure(undefined);
 
     void (async () => {
-      // AC-11. Push first, then remove the file. Nothing is kept for
-      // convenience: on a shared phone the alternative is a full health
-      // record sitting on disk after someone signs out.
-      const result = await signOutSafely({
-        userId: account.userId,
-        db: asSqlDatabase(account.db),
-        close: () => account.db.closeAsync(),
-        transport,
-        force,
-      });
+      try {
+        // AC-11. Push first, then remove the file. Nothing is kept for
+        // convenience: on a shared phone the alternative is a full health
+        // record sitting on disk after someone signs out.
+        const result = await signOutSafely({
+          userId: account.userId,
+          db: asSqlDatabase(account.db),
+          close: () => account.db.closeAsync(),
+          transport,
+          force,
+        });
 
-      if (result.kind === 'pending') {
-        setPending(result.meals);
+        // Every outcome goes through one exhaustive decision, so a new one can
+        // never quietly take somebody else's branch again. See
+        // `sign-out-outcome.ts` for what each means.
+        const action = actionForSignOut(result);
+
+        if (action.askAbout !== undefined) setPending(action.askAbout);
+        if (action.message !== undefined) setFailure(action.message);
+        // AC-11b. `endClerkSession` is false while draining on purpose: that
+        // session is the only thing that can still push the owed meals.
+        if (action.endClerkSession) await signOut();
+        if (action.recheck) recheck();
+      } catch (error) {
+        // Signing out is a privacy action, so it is the last place a thrown
+        // value may disappear. Nothing here is expected to throw; if it does,
+        // the person still gets a sentence rather than a button that did
+        // nothing (AC-12).
+        setFailure(
+          `Signing out did not finish, so your diary is still on this phone. ${
+            error instanceof Error ? error.message : 'Please try again.'
+          }`,
+        );
+      } finally {
         setBusy(false);
-        return;
       }
-
-      // AC-11b. On `draining` the Clerk session is deliberately kept: it is
-      // the only thing that can still push those meals, and it ends the moment
-      // they land. The phone looks signed out either way, because the account
-      // provider refuses to open a draining account's file.
-      if (result.kind === 'removed') await signOut();
-      // Either way the app has to stop showing this diary now, so the startup
-      // sequence runs again and lands on the sign in screen.
-      recheck();
-
-      setBusy(false);
     })();
   };
 
@@ -98,6 +110,15 @@ export default function SettingsScreen() {
       <View>
         <ListRow title={email} subtitle="Signed in" last />
       </View>
+
+      {/*
+        AC-11, AC-12. The removal failed, so the diary is still on this phone
+        and nothing will retry on its own. On a shared phone that is the one
+        thing a person must not be left guessing about: they pressed sign out,
+        and if they hand the device over believing it worked, their whole
+        health record goes with it.
+      */}
+      {failure === undefined ? undefined : <Notice message={failure} testID="sign-out-failed" />}
 
       {pending === undefined ? (
         <Button
