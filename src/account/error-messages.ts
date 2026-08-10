@@ -1,6 +1,8 @@
 import { devWarn } from '@/config/dev-warning';
 import type { TransportFailure } from '@/data/remote/transport';
 
+import { looksLikeLostConnection } from './network-failure';
+
 /**
  * Turning a failure into a sentence a person can act on (spec 0004, AC-12).
  *
@@ -135,16 +137,16 @@ type ClerkLikeError = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
-/** Whether a thrown value looks like a lost connection rather than a refusal. */
-const looksLikeNetworkFailure = (error: ClerkLikeError): boolean => {
-  const text = (error.message ?? '').toLowerCase();
-  return (
-    text.includes('network') ||
-    text.includes('failed to fetch') ||
-    text.includes('timeout') ||
-    text.includes('internet')
-  );
-};
+/**
+ * Whether a thrown value looks like a lost connection rather than a refusal.
+ *
+ * The rule itself lives in `network-failure.ts`, shared with the sync
+ * transport. It used to be a second copy here, and the two had drifted: this
+ * one never knew about `fetch failed`, and neither knew what a timeout or a
+ * DNS failure actually says.
+ */
+const looksLikeNetworkFailure = (error: ClerkLikeError): boolean =>
+  looksLikeLostConnection(error.message ?? '');
 
 /**
  * The one entry point: any failure in, one written sentence out.

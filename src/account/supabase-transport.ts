@@ -4,6 +4,7 @@ import type { RemoteRow } from '@/data/remote/codec';
 import type { SyncTransport, TransportFailure, TransportResult } from '@/data/remote/transport';
 
 import { syncFailureMessage } from './error-messages';
+import { looksLikeLostConnection } from './network-failure';
 
 /**
  * The Supabase half of the sync port (spec 0004, AC-15).
@@ -32,21 +33,10 @@ type PostgrestLikeError = {
   readonly message?: string;
 };
 
-const looksOffline = (message: string): boolean => {
-  const text = message.toLowerCase();
-  return (
-    text.includes('network') ||
-    text.includes('failed to fetch') ||
-    text.includes('fetch failed') ||
-    text.includes('timeout') ||
-    text.includes('abort')
-  );
-};
-
 const classify = (error: PostgrestLikeError): TransportFailure => {
   const code = error.code ?? '';
   if (SESSION_CODES.includes(code)) return 'session-ended';
-  return looksOffline(error.message ?? '') ? 'offline' : 'rejected';
+  return looksLikeLostConnection(error.message ?? '') ? 'offline' : 'rejected';
 };
 
 /** One place where a failure becomes a result value with a written sentence. */

@@ -143,33 +143,26 @@ describe('createSupabaseTransport, classifying a failure', () => {
   );
 
   /**
-   * A known gap, pinned rather than papered over.
+   * The regression these five exist for (fixed 10 August 2026).
    *
-   * `transport.ts` documents `offline` as "No signal, DNS, a timeout", but
-   * `looksOffline` matches the substrings `network`, `failed to fetch`,
-   * `fetch failed`, `timeout`, and `abort`. None of them appears in the
-   * messages a DNS failure or a timeout actually produces: the natural
-   * phrasing is "timed **out**", and Node's own codes are `ETIMEDOUT`,
-   * `ENOTFOUND`, and `EAI_AGAIN`. So every message below is classified
-   * `rejected` today, against this module's own stated contract.
+   * `transport.ts` documents `offline` as "No signal, DNS, a timeout", and the
+   * classifier matched none of the messages a DNS failure or a timeout
+   * actually produces: it looked for `timeout` while every platform says
+   * "timed **out**", and it knew none of the operating system codes. All five
+   * came back `rejected`, so a phone with no signal was described as a server
+   * refusing the data.
    *
-   * What it costs a person: nothing is lost, and both sentences say their
-   * meals are safe. But Today shows "Not yet in sync" instead of
-   * "Offline · saved on this phone", so a phone with no signal is described
-   * as a server problem rather than as being offline.
-   *
-   * `it.fails` is deliberate. These assert the behaviour that **should** hold,
-   * and they pass only while it does not. Fix `looksOffline` and they will go
-   * red, which is the prompt to change them to plain `it`. /test does not edit
-   * application code to make a test green.
+   * They were written as `it.fails` by `/test` to pin the gap without editing
+   * application code, and became plain assertions once `/debug` moved the rule
+   * into `network-failure.ts`.
    */
-  it.fails.each([
+  it.each([
     'The request timed out',
     'connect ETIMEDOUT 10.0.0.1:443',
     'socket hang up',
     'ENOTFOUND kfzlocqwrzgkyqkzphfq.supabase.co',
     'getaddrinfo EAI_AGAIN',
-  ])('should read "%s" as offline, but does not yet', async (message) => {
+  ])('reads "%s" as offline', async (message) => {
     const fake = fakeClient({ error: { message } });
     const result = await createSupabaseTransport(fake.client).select(
       'meals',

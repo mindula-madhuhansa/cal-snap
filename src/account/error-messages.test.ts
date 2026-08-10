@@ -76,4 +76,38 @@ describe('failureMessage', () => {
       expect(failureMessage(junk).message.length).toBeGreaterThan(0);
     }
   });
+
+  /**
+   * The regression fixed on 10 August 2026, and the worse half of it.
+   *
+   * The sign in door had its own copy of the lost connection rule, and it knew
+   * about neither timeouts nor DNS. Someone with no signal pressing Continue
+   * was told "Something went wrong signing you in", which reads as the app
+   * being broken and gives them nothing to act on, when the true answer was
+   * simply that their phone could not reach anything.
+   *
+   * This is the criterion's actual wording: "a missing network connection"
+   * must produce "a specific message a person can act on".
+   */
+  // covers: AC-12
+  it.each([
+    'The request timed out',
+    'connect ETIMEDOUT 10.0.0.1:443',
+    'getaddrinfo ENOTFOUND clerk.accounts.dev',
+    'getaddrinfo EAI_AGAIN clerk.accounts.dev',
+    'socket hang up',
+    'fetch failed',
+    'Network request failed',
+  ])('tells someone their connection is down when sign in fails with "%s"', (message) => {
+    expect(failureMessage({ message })).toEqual(networkFailureMessage);
+  });
+
+  // covers: AC-12. The other direction: a real refusal from Clerk must keep
+  // its own sentence and never be softened into "check your connection".
+  it('does not blame the network for a wrong password', () => {
+    const result = failureMessage({ errors: [{ code: 'form_password_incorrect' }] });
+
+    expect(result).not.toEqual(networkFailureMessage);
+    expect(result.message).toContain('password');
+  });
 });
