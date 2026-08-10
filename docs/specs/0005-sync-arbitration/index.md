@@ -1,7 +1,7 @@
 # 0005. Server owned clock and sticky tombstone for sync arbitration
 
 **Date**: 2026-08-10
-**Status**: Proposed
+**Status**: In Progress
 
 ## Summary
 
@@ -222,23 +222,32 @@ Skateboard, so the first slice is the thinnest thing that is genuinely whole: th
 clock and the tombstone, applied and proven, before the phone half is touched. That order is safe on
 purpose, see `## Migration plan`.
 
-1. Add `toPostgresSyncTriggers(tables)` to `src/data/schema/to-postgres.ts`: the two functions, and
-   one trigger per table with `presence: 'both'`, picking the sticky variant by `softDelete`. Pure,
-   like the rest of that file. Satisfies **AC-1**, **AC-3**, **AC-4**, **AC-6**.
-2. Extend `scripts/generate-supabase-migration.ts` to write a second file,
+1. [x] Add `toPostgresSyncTriggers(tables)` to `src/data/schema/to-postgres.ts`: the two functions,
+   and one trigger per table with `presence: 'both'`, picking the sticky variant by `softDelete`.
+   Pure, like the rest of that file. Satisfies **AC-1**, **AC-3**, **AC-4**, **AC-6**.
+2. [x] Extend `scripts/generate-supabase-migration.ts` to write a second file,
    `supabase/migrations/20260810000000_sync_arbitration.sql`, leaving the core migration untouched.
    Satisfies **AC-7**.
-3. Add the generator tests listed above, beside the existing ones. Satisfies **AC-1**, **AC-3**,
+3. [x] Add the generator tests listed above, beside the existing ones. Satisfies **AC-1**, **AC-3**,
    **AC-4**, **AC-6**, **AC-7**.
-4. Apply the new migration to the live `Cal Snap` project. Satisfies **AC-1**, **AC-3**.
-5. Rewrite `acknowledged` and its update in `src/data/remote/push.ts` to write the whole returned
-   row back, guarded on the sent `updated_at` looked up by key, and give `pushTable` its stopping
-   rule and a confirmed row count. Satisfies **AC-2**, **AC-3**, **AC-5**.
-6. Add the push tests in `src/data/remote/sync.test.ts`, driving the real push against the fake
-   server. Satisfies **AC-2**, **AC-3**, **AC-5**.
-7. Run the live checks through the Supabase MCP and record them in `verify.md`. Satisfies **AC-8**,
-   and re-proves **AC-1**, **AC-3**, **AC-6** against the real database rather than the generated
-   text.
+4. [x] Apply the new migration to the live `Cal Snap` project. Satisfies **AC-1**, **AC-3**.
+   Applied 10 August 2026 and read back from `pg_trigger`: six triggers, the right variant on each
+   table, neither function `security definer`, `search_path` pinned on both.
+5. [x] Rewrite `acknowledged` and its update in `src/data/remote/push.ts` to write the whole
+   returned row back, guarded on the sent `updated_at` looked up by key, and give `pushTable` its
+   stopping rule and a confirmed row count. Satisfies **AC-2**, **AC-3**, **AC-5**.
+6. [x] Add the push tests in `src/data/remote/sync.test.ts`, driving the real push against the fake
+   server. Satisfies **AC-2**, **AC-3**, **AC-5**. The fake server in `test/support/fake-server.ts`
+   now models the three trigger rules, because its old comment said it did not arbitrate "because
+   the live Postgres does not either yet", which stopped being true with task 4.
+7. [ ] Run the live checks through the Supabase MCP and record them in `verify.md`. Satisfies
+   **AC-8**, and re-proves **AC-1**, **AC-3**, **AC-6** against the real database rather than the
+   generated text. **Partly done on 10 August 2026**: the row level checks all passed against the
+   live database (a sent `updated_at` of 2030 overridden, three rows in one statement given three
+   distinct stamps, `created_at` frozen on update and on the upsert path, a revival refused whole
+   with the bundled edit discarded, and a refused write proven to move no stamp at all). **AC-8 is
+   what remains**, and it cannot be done here: it needs two development builds signed in to one
+   account with one device's clock set two hours behind.
 
 ## Migration plan
 
