@@ -19,6 +19,8 @@ Most of this needs a development build on a real phone. Three things cannot be c
 ### Getting in and out of setup
 
 - [ ] Sign in as a brand new account → expect the consent screen, not Today → AC-1
+- [ ] Press **Start using CalSnap** on the result screen → expect to land on Today within a moment, not to sit on "Saving your daily target". Both device bugs of 10 August 2026 ended here: first the write threw, then the write succeeded but nothing navigated → AC-1, AC-6
+- [ ] Press **Start using CalSnap**, and if it ever fails, press it again → expect the second press to succeed. Finishing setup has to survive a retry → AC-6
 - [ ] Finish setup, force quit, reopen → expect Today, never setup again → AC-1
 - [ ] **Second device.** Sign in on a second development build with the same account, having finished setup on the first → expect Today directly, with the target and answers already there and setup never shown → AC-1, AC-13
 - [ ] Sign out midway through setup, sign back in → expect the first question again, with no earlier answers. The draft goes with the per account database file → AC-17
