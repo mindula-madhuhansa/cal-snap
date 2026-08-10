@@ -4,7 +4,9 @@
 **Status**: In Progress
 **Amended**: 2026-08-10, for identity only. Spec [0004](../0004-account-and-sign-in/index.md) chose Clerk over Supabase Auth, so `user_id` is `text` holding a Clerk identifier rather than a `uuid` referencing `auth.users`, every policy reads `auth.jwt() ->> 'sub'`, and account deletion has no cascade behind it any more. The amended lines are marked. Every other rule here (tombstones, newest write wins, the day rules, the totals, the parity guarantee) is untouched, and the change cost nothing to make because no row existed yet.
 
-The amended state is confirmed against the live project rather than assumed: all six tables carry `user_id text`, row level security is enabled **and** forced on each, every policy is `(user_id = (select auth.jwt() ->> 'sub'))` for the `authenticated` role, and the only foreign keys left in the schema are `meal_items.meal_id` and `meals.scan_id`.
+**Amended**: 2026-08-10, for arbitration. Three lines here described server behaviour that nothing implemented: `updated_at` assigned by the server, ties resolving to the server copy, and a tombstone the server keeps. Spec [0005](../0005-sync-arbitration/index.md) supplies the mechanism and drops the comparison. The affected lines carry their own notes.
+
+The identity amendment's state is confirmed against the live project rather than assumed: all six tables carry `user_id text`, row level security is enabled **and** forced on each, every policy is `(user_id = (select auth.jwt() ->> 'sub'))` for the `authenticated` role, and the only foreign keys left in the schema are `meal_items.meal_id` and `meals.scan_id`.
 
 ## Summary
 
@@ -59,6 +61,8 @@ Identifiers are UUID version 7, generated on the device. Postgres never generate
 Two tables are the exception. `daily_targets` and `weight_entries` are naturally keyed by a day rather than by an event, and two offline devices can each decide to create the row for the same day. A random identifier on each would collide on the unique index rather than on the primary key, where the conflict rule cannot see it. Both therefore use a **deterministic** identifier: a UUID version 5 computed from a fixed project namespace, the `user_id`, and the `on_date`. Two devices independently creating Tuesday's target produce the same identifier, so the collision becomes an ordinary same row conflict that newest write wins already handles.
 
 `updated_at` is stamped **by the server**, not by the device, and the device stores the value the server returns. A device sets its own `updated_at` only while a row is still local and unpushed. This matters because newest write wins is the only arbitration there is, and a phone with a wrong clock would otherwise win every conflict forever.
+
+_(Amended 10 August 2026.)_ Nothing made this true. Checked against the live project, Postgres had no trigger, so the stored `updated_at` was whatever the pushing phone sent. The worst of it was not an unfair conflict: because `pullChanges` pages on `updated_at`, a phone with a slow clock pushed rows stamped behind another device's watermark, and that device never pulled them. Spec [0005](../0005-sync-arbitration/index.md) puts a trigger behind this paragraph and drops the comparison, since a server owned clock makes newest write and last push the same event.
 
 **`user_id` is `text`, not `uuid`, and has no foreign key** (amended 10 August 2026, spec 0004). It holds the Clerk identifier, which looks like `user_2abc...` and is not a UUID. There is nothing in this database for it to reference, because the account lives at Clerk, so the column stands alone and its correctness is enforced by the policy rather than by a constraint.
 
@@ -262,8 +266,8 @@ There are no HTTP endpoints in release 1. The surface is a set of data access fu
 | `rescaleItem` | `calories` and each macro | `base_*` times `quantity` divided by `base_per`, rounded on write (calories to a whole number, macros to one decimal) |
 | `computeStreak` | the streak count | consecutive local dates back from yesterday having at least one live meal, plus today when today already has one |
 | `searchPastItems` | the suggested numbers | the most recent `meal_items` row for that name belonging to this user; empty on a new account, which the screen states plainly |
-| `pushChanges` | conflict winner | a deleted row always wins, whatever the timestamps say. Otherwise the row with the later `updated_at`, with ties resolving to the server copy |
-| `pushChanges` | `updated_at` | assigned by the server on receipt, never trusted from the device, so a wrong device clock cannot win every conflict |
+| `pushChanges` | conflict winner | a deleted row always wins, whatever the timestamps say. Otherwise the push that arrives second. _(Amended 10 August 2026: this originally read "the row with the later `updated_at`, with ties resolving to the server copy". No such comparison exists or is planned. An upsert overwrites, and once the server owns the clock, later stamp and later push are the same thing, so there is nothing left to compare. Mechanism in spec [0005](../0005-sync-arbitration/index.md).)_ |
+| `pushChanges` | `updated_at` | assigned by the server on receipt, never trusted from the device, so a wrong device clock cannot win every conflict. _(Amended 10 August 2026: true as an intent, false as a description until spec [0005](../0005-sync-arbitration/index.md) is built. Nothing in Postgres assigned it, so the stored value was the sending phone's clock. 0005 puts a trigger behind this line.)_ |
 | `saveMeal`, `getOrCreateDailyTarget` | `id` for a day keyed row | UUID version 5 over the project namespace, `user_id`, and `on_date`, so two offline devices produce the same identifier for the same day |
 | any read | which rows are visible | `deleted_at is null`, always, plus row level security in Postgres |
 | any display of a health number | whether it is an estimate | `meal_items.source` and `meal_items.confidence` |
@@ -278,8 +282,8 @@ There are no HTTP endpoints in release 1. The surface is a set of data access fu
 - Exactly one live `weight_entries` row exists per user per local date.
 - Every row in every table has a `user_id` equal to the signed in user. There is no shared or global row anywhere in the schema.
 - A row is never physically deleted by user action. Only the retention sweep removes rows, and only tombstones older than 90 days.
-- `updated_at` never moves backwards, and is only ever set by the server once a row has been pushed.
-- A deleted row is never revived. `deleted_at` only ever goes from null to a time.
+- `updated_at` never moves backwards, and is only ever set by the server once a row has been pushed. _(Amended 10 August 2026: an intent, not yet a fact. Enforced by spec [0005](../0005-sync-arbitration/index.md).)_
+- A deleted row is never revived. `deleted_at` only ever goes from null to a time. _(Amended 10 August 2026: held on the receiving device only, by `mayApply` in `pull.ts`, so the server would still store a revived row and hand it to a device signing in for the first time. Spec [0005](../0005-sync-arbitration/index.md) moves the rule into Postgres.)_
 - The identifier of a `daily_targets` or `weight_entries` row is a pure function of its `user_id` and its `on_date`, so it is the same on every device.
 - Weight is kilograms and height is centimetres, everywhere, in both databases.
 - A `daily_targets` row is never recomputed after it is written. Adding a weight entry backdated to a day whose target already exists does **not** change that target. This is deliberate, not an oversight: the target that applied on a day is what the person was actually eating against.

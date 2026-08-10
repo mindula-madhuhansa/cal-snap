@@ -15,43 +15,43 @@ network and no client.
 
 ## Key files
 
-| File                     | Owns                                                                          |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| `schema/types.ts`        | The table description type, and the terse constructors table files use        |
-| `schema/tables/*.ts`     | One file per table, plain data, no database imports                           |
-| `schema/tables/all.ts`   | `releaseOneTables`, in dependency order                                       |
-| `schema/to-sqlite.ts`    | The SQLite generator, pure                                                    |
-| `schema/to-postgres.ts`  | The Postgres generator, pure, including row level security                    |
-| `schema/checks.ts`       | The one type mapping table, and how a check renders as SQL                    |
-| `schema/resolve.ts`      | The lifecycle and device only columns each dialect gets                       |
-| `schema/parity.ts`       | Reads both generated schemas back and compares them (AC-1)                    |
-| `calculations/*.ts`      | Portion rescaling, the local day, the meal type guess, units, rounding        |
-| `ids/uuid.ts`            | UUID version 7 and version 5, pure; `ids/sha1.ts` backs version 5             |
-| `ids/device.ts`          | The device's real randomness. The only Expo import in `ids/`                  |
-| `local/database.ts`      | The narrow `SqlDatabase` port the whole data layer talks to                   |
-| `local/migrations.ts`    | SQLite migration 2's SQL, generated, plus its fingerprint guard               |
-| `local/meals.ts`         | `saveMeal`, `listMealsForDay`, `deleteMeal`, `totalsForDay`                   |
-| `local/daily-targets.ts` | `getOrCreateDailyTarget`, which takes the calorie formula as an argument      |
-| `local/past-items.ts`    | `searchPastItems`, the add by hand search over your own history               |
-| `local/streak.ts`        | `computeStreak`                                                               |
-| `local/database-file.ts` | The per user database file, opened on sign in and removed on sign out         |
-| `local/database-name.ts` | Naming and validating that file from a Clerk identifier. Pure                 |
-| `local/pending.ts`       | `countPendingPushes` (the gate) and `countPendingMeals` (what a person reads) |
-| `local/rows.ts`          | The database row shapes, and the mapping into the app's shapes                |
-| `remote/transport.ts`    | The narrow `SyncTransport` port, and `BEGINNING_OF_TIME`                      |
-| `remote/push.ts`         | Dirty rows up, upserted on the primary key so a replay is idempotent          |
-| `remote/pull.ts`         | Rows down by keyset from the watermark, with the sticky delete rule           |
-| `remote/sync.ts`         | `runSync`: push, then pull, with a reason. Safe to call repeatedly            |
-| `remote/codec.ts`        | Row shapes across the wire, and the device only columns kept off it           |
-| `remote/sync-state.ts`   | Reading and advancing the per table pull watermark                            |
+| File                     | Owns                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `schema/types.ts`        | The table description type, and the terse constructors table files use         |
+| `schema/tables/*.ts`     | One file per table, plain data, no database imports                            |
+| `schema/tables/all.ts`   | `releaseOneTables`, in dependency order                                        |
+| `schema/to-sqlite.ts`    | The SQLite generator, pure                                                     |
+| `schema/to-postgres.ts`  | The Postgres generator, pure: row level security, and the arbitration triggers |
+| `schema/checks.ts`       | The one type mapping table, and how a check renders as SQL                     |
+| `schema/resolve.ts`      | The lifecycle and device only columns each dialect gets                        |
+| `schema/parity.ts`       | Reads both generated schemas back and compares them (AC-1)                     |
+| `calculations/*.ts`      | Portion rescaling, the local day, the meal type guess, units, rounding         |
+| `ids/uuid.ts`            | UUID version 7 and version 5, pure; `ids/sha1.ts` backs version 5              |
+| `ids/device.ts`          | The device's real randomness. The only Expo import in `ids/`                   |
+| `local/database.ts`      | The narrow `SqlDatabase` port the whole data layer talks to                    |
+| `local/migrations.ts`    | SQLite migration 2's SQL, generated, plus its fingerprint guard                |
+| `local/meals.ts`         | `saveMeal`, `listMealsForDay`, `deleteMeal`, `totalsForDay`                    |
+| `local/daily-targets.ts` | `getOrCreateDailyTarget`, which takes the calorie formula as an argument       |
+| `local/past-items.ts`    | `searchPastItems`, the add by hand search over your own history                |
+| `local/streak.ts`        | `computeStreak`                                                                |
+| `local/database-file.ts` | The per user database file, opened on sign in and removed on sign out          |
+| `local/database-name.ts` | Naming and validating that file from a Clerk identifier. Pure                  |
+| `local/pending.ts`       | `countPendingPushes` (the gate) and `countPendingMeals` (what a person reads)  |
+| `local/rows.ts`          | The database row shapes, and the mapping into the app's shapes                 |
+| `remote/transport.ts`    | The narrow `SyncTransport` port, and `BEGINNING_OF_TIME`                       |
+| `remote/push.ts`         | Dirty rows up, upserted on the key, and the server's reply written back        |
+| `remote/pull.ts`         | Rows down by keyset from the watermark, with the sticky delete rule            |
+| `remote/sync.ts`         | `runSync`: push, then pull, with a reason. Safe to call repeatedly             |
+| `remote/codec.ts`        | Row shapes across the wire, and the device only columns kept off it            |
+| `remote/sync-state.ts`   | Reading and advancing the per table pull watermark                             |
 
 ## Commands
 
-| Command                          | What it does                                                 |
-| -------------------------------- | ------------------------------------------------------------ |
-| `npm test`                       | The whole suite, including the parity and fingerprint checks |
-| `npm test src/data/schema`       | Just the generators and the parity check                     |
-| `npm run gen:supabase-migration` | Rewrites `supabase/migrations/` from the declarations        |
+| Command                          | What it does                                                        |
+| -------------------------------- | ------------------------------------------------------------------- |
+| `npm test`                       | The whole suite, including the parity and fingerprint checks        |
+| `npm test src/data/schema`       | Just the generators and the parity check                            |
+| `npm run gen:supabase-migration` | Rewrites both files in `supabase/migrations/` from the declarations |
 
 ## Conventions
 
@@ -116,7 +116,27 @@ network and no client.
   the only reason a fresh phone receives an existing diary at all.
 - `runSync` with reason `sign-out` pushes and deliberately does **not** pull, because pulling a
   diary the app is about to delete is work for nothing.
+- **`updated_at` in Postgres belongs to the server, and a push believes the reply rather than its
+  own request** (spec 0005). A trigger stamps it, freezes `created_at`, and refuses to move
+  `deleted_at` back to null, so what comes back is not always what went out: a push that tried to
+  revive a deleted row comes back as the tombstone. `pushChanges` writes the whole returned row into
+  SQLite because of that. Keeping only the timestamp would leave a deleted meal on one phone
+  forever, marked clean, with the watermark already past the tombstone that would have fixed it.
+- **Every local write that sets `is_dirty = 1` must also move `updated_at`.** `pushChanges` decides
+  whether a row changed while its push was in flight by comparing that stamp, so a write that
+  dirties a row without moving it would have the person's edit silently overwritten by the reply.
+  True today in `local/meals.ts`; nothing enforces it.
+- **`withTransactionAsync` must serialise every other writer on the connection.** Both
+  implementations do, because both hold a single connection, and `pushChanges` depends on it: it
+  reads a row and then writes it as two statements. `local/database.ts` carries the full note. An
+  implementation letting two connections share one file would reopen that race with nothing failing
+  to compile.
 - `supabase/migrations/` is generated. Do not hand edit it; run `npm run gen:supabase-migration`.
+  **Both files are rewritten in full on every run, so an applied one must keep generating exactly
+  what was applied.** `20260809000000_core_data_model.sql` is applied, so regenerating it must leave
+  `git diff` empty; a non empty diff there means a later change leaked into a migration a database
+  has already run, and that is the failure signal. A new change gets its own emitter and its own
+  file, the way `toPostgresSyncTriggers` did.
 - Test files and `test/support/` typecheck under `tsconfig.test.json`, not the app config, so Node
   globals stay out of app source.
 
@@ -137,5 +157,9 @@ MCP servers: Supabase (connected; the live project is `Cal Snap`).
 - [0004. Account and sign in](../../docs/specs/0004-account-and-sign-in/index.md), which amended
   0002's identity model (`text` identifiers, `auth.jwt() ->> 'sub'` policies) and settled when
   sync runs. Session conventions live in [src/account/AGENTS.md](../account/AGENTS.md).
+- [0005. Sync arbitration](../../docs/specs/0005-sync-arbitration/index.md), which amended 0002
+  again: it supplied the mechanism behind three rules 0002 stated but nothing implemented, and
+  replaced "newest write wins" with the last push winning, since a server owned clock makes them
+  the same event.
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._

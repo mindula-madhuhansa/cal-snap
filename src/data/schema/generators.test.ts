@@ -9,7 +9,7 @@ import {
   sqliteTypeFor,
 } from './checks';
 import { resolveColumns, sharedColumns, SYNC_ONLY_COLUMNS } from './resolve';
-import { toPostgres } from './to-postgres';
+import { toPostgres, toPostgresSyncTriggers } from './to-postgres';
 import { toSqlite } from './to-sqlite';
 import { meals, mealItems, profiles, releaseOneTables } from './tables/all';
 import { boolean, decimal, integer, json, text, timestamptz, uuid } from './types';
@@ -288,5 +288,116 @@ describe('toPostgres', () => {
   it('skips a SQLite only table entirely', () => {
     const localOnly = { ...mealItems, name: 'sync_state', presence: 'sqlite' as const };
     expect(toPostgres([localOnly])).toBe('\n');
+  });
+
+  // covers: spec 0005 AC-7. The core migration is applied. If a later change
+  // ever leaks into it, this generator rewrites what a database already ran.
+  it('keeps the arbitration triggers out of the core migration entirely', () => {
+    expect(sql).not.toContain('create trigger');
+    expect(sql).not.toContain('sync_stamp');
+    expect(sql).not.toContain('clock_timestamp');
+  });
+});
+
+describe('toPostgresSyncTriggers', () => {
+  const sql = toPostgresSyncTriggers(releaseOneTables);
+  const softDeleting = releaseOneTables.filter(
+    (table) => table.presence === 'both' && table.softDelete,
+  );
+  const withoutTombstone = releaseOneTables.filter(
+    (table) => table.presence === 'both' && !table.softDelete,
+  );
+
+  // covers: spec 0005 AC-1. The whole decision in one assertion: the clock
+  // belongs to Postgres, and the device's value is overwritten on every write.
+  it('assigns updated_at from the server clock in both functions', () => {
+    expect(sql.match(/new\.updated_at := clock_timestamp\(\);/g)).toHaveLength(2);
+  });
+
+  // covers: spec 0005 AC-6. now() is the transaction's start time, so a whole
+  // push batch would share one instant and a pull page that shares its
+  // boundary instant stops advancing. A distinct stamp per row removes the
+  // dependency between BATCH and PAGE rather than documenting it.
+  it('never uses now(), which would stamp a whole batch identically', () => {
+    expect(sql).not.toMatch(/:=\s*now\(\)/);
+  });
+
+  // covers: spec 0005 AC-4. saveMeal gives a meal and its items one identical
+  // created_at and searchPastItems orders on it, but they are pushed in
+  // separate statements, so a server stamp on insert would split them. Frozen
+  // on update, never assigned on insert.
+  it('freezes created_at on update and never stamps it on insert', () => {
+    expect(sql.match(/new\.created_at := old\.created_at;/g)).toHaveLength(2);
+    expect(sql).not.toMatch(/new\.created_at := clock_timestamp/);
+  });
+
+  // covers: spec 0005 AC-3. The rule spec 0002 claimed and only the client
+  // enforced, now in the database where a future caller cannot go round it.
+  it('refuses to move deleted_at back to null', () => {
+    expect(sql).toContain('if old.deleted_at is not null and new.deleted_at is null then');
+    expect(sql).toContain('return old;');
+  });
+
+  // covers: spec 0005 AC-3. Returning null would cancel the row, PostgREST
+  // would leave it out of the reply, and pushChanges would never see an
+  // acknowledgement: the row stays dirty and is retried on every sync forever.
+  // Returning OLD writes nothing and still puts the stored row in the reply,
+  // which is the only way the phone learns it lost.
+  it('returns old rather than null, so the refused row is still in the reply', () => {
+    expect(sql).not.toMatch(/return null;/);
+  });
+
+  // covers: spec 0005 AC-3. A function reading new.deleted_at is attached only
+  // where that column exists. NEW is an untyped record, so a mismatch is not
+  // caught at creation: it raises on a real write, in production.
+  it('gives the sticky variant to exactly the tables that declare a tombstone', () => {
+    expect(softDeleting.map((table) => table.name)).toEqual([
+      'meals',
+      'meal_items',
+      'daily_targets',
+      'weight_entries',
+    ]);
+
+    for (const table of softDeleting) {
+      expect(sql).toContain(
+        `create trigger ${table.name}_sync_stamp\n  before insert or update on public.${table.name}\n  for each row execute function public.sync_stamp_sticky_delete();`,
+      );
+    }
+  });
+
+  it('gives the plain variant to the tables with no tombstone', () => {
+    expect(withoutTombstone.map((table) => table.name)).toEqual(['profiles', 'meal_scans']);
+
+    for (const table of withoutTombstone) {
+      expect(sql).toContain(
+        `create trigger ${table.name}_sync_stamp\n  before insert or update on public.${table.name}\n  for each row execute function public.sync_stamp();`,
+      );
+    }
+  });
+
+  // covers: spec 0005 AC-1. Six synced tables, six triggers. A table added
+  // without one would silently keep trusting the device's clock.
+  it('stamps every synced table and no others', () => {
+    expect(sql.match(/create trigger /g)).toHaveLength(6);
+    expect(sql).not.toContain('sync_state');
+  });
+
+  it('fires before the write, on both inserts and updates', () => {
+    expect(sql.match(/before insert or update on/g)).toHaveLength(6);
+  });
+
+  // The functions read only OLD and NEW, so they need no privilege of their
+  // own. security definer would hand them a row level security bypass with no
+  // use for it, and an unset search_path is the hazard that makes that
+  // dangerous.
+  it('takes no privilege it does not need, and pins the search path', () => {
+    expect(sql.match(/security invoker/g)).toHaveLength(2);
+    expect(sql.match(/set search_path = ''/g)).toHaveLength(2);
+    expect(sql).not.toContain('security definer');
+  });
+
+  it('emits nothing for a table set that syncs nothing', () => {
+    const localOnly = { ...mealItems, name: 'sync_state', presence: 'sqlite' as const };
+    expect(toPostgresSyncTriggers([localOnly])).toBe('\n');
   });
 });

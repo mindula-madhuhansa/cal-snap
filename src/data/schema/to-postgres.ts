@@ -89,3 +89,105 @@ export const toPostgres = (tables: readonly Table[]): string =>
     .filter((table) => table.presence === 'both')
     .map(tableToPostgres)
     .join('\n\n') + '\n';
+
+/**
+ * Sync arbitration (spec 0005), emitted **separately** from `toPostgres`.
+ *
+ * It has to be separate. `toPostgres` writes the core migration, which is
+ * already applied to the live database, and regenerating that file with new
+ * statements in it would rewrite history rather than extend it. So this
+ * produces its own migration body and the core one is never touched again.
+ *
+ * What it is for: spec 0002 said the server assigns `updated_at` and that a
+ * deleted row is never revived, and nothing implemented either. The stored
+ * `updated_at` was whatever the pushing phone sent, and because `pullChanges`
+ * pages on that column, a phone with a slow clock pushed rows stamped behind
+ * another device's watermark and that device never pulled them. A meal simply
+ * missing, with both phones online and nothing failing.
+ */
+
+/**
+ * Two functions rather than one, and this is not a style choice: `NEW` and
+ * `OLD` are untyped records, so `new.deleted_at` on a table without that
+ * column is not caught when the function is created. It raises at runtime, on
+ * a real write. A table gets the variant its declaration earns.
+ */
+const SYNC_STAMP = `create or replace function public.sync_stamp()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' then
+    -- Frozen, never restamped. \`saveMeal\` gives a meal and all of its items
+    -- one identical \`created_at\`, and \`searchPastItems\` orders on it, but a
+    -- meal and its items are pushed in separate statements. A server stamp
+    -- would split the instant they deliberately share.
+    new.created_at := old.created_at;
+  end if;
+
+  new.updated_at := clock_timestamp();
+  return new;
+end;
+$$;`;
+
+/**
+ * `clock_timestamp()` rather than `now()`, which is the transaction's start
+ * time and would give every row in one push batch the same instant. A pull
+ * stops advancing when a whole page shares one, and today that is safe only
+ * because `BATCH` is 200 and `PAGE` is 500, two unrelated constants in two
+ * files with nothing asserting the relationship.
+ *
+ * Returning `OLD` is the load bearing part of the sticky variant. A `before`
+ * trigger that returns null cancels the row, and PostgREST then leaves it out
+ * of the reply, so the push would never see an acknowledgement and the row
+ * would stay dirty and be retried forever. Returning `OLD` performs a write
+ * that changes nothing and puts the stored row in the reply, which is exactly
+ * what the phone needs in order to learn that it lost.
+ *
+ * Note that it reverts the whole row, not only `deleted_at`, so any edit sent
+ * with the revival is discarded too. That is intended: an edit to a meal that
+ * has already been deleted has nothing to apply to.
+ */
+const SYNC_STAMP_STICKY_DELETE = `create or replace function public.sync_stamp_sticky_delete()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' then
+    if old.deleted_at is not null and new.deleted_at is null then
+      return old;
+    end if;
+
+    new.created_at := old.created_at;
+  end if;
+
+  new.updated_at := clock_timestamp();
+  return new;
+end;
+$$;`;
+
+/** A table earns the sticky variant by declaring a tombstone. */
+const stampFunctionFor = (table: Table): string =>
+  table.softDelete ? 'public.sync_stamp_sticky_delete()' : 'public.sync_stamp()';
+
+const triggerStatement = (table: Table): string =>
+  `create trigger ${table.name}_sync_stamp
+  before insert or update on public.${table.name}
+  for each row execute function ${stampFunctionFor(table)};`;
+
+/**
+ * Every synced table that carries lifecycle columns gets one trigger. A table
+ * that lives only on the phone is never sent anywhere, so it has nothing to
+ * arbitrate.
+ */
+export const toPostgresSyncTriggers = (tables: readonly Table[]): string => {
+  const stamped = tables.filter((table) => table.presence === 'both' && table.timestamps);
+  if (stamped.length === 0) return '\n';
+
+  const triggers = stamped.map(triggerStatement).join('\n\n');
+  return `${SYNC_STAMP}\n\n${SYNC_STAMP_STICKY_DELETE}\n\n${triggers}\n`;
+};

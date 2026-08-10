@@ -10,18 +10,28 @@ import type {
  * nothing more.
  *
  * It is shared setup rather than part of one test file, because the push, the
- * pull, and the `runSync` tests all drive it, and because the rules it does
- * **not** implement are worth stating in one place:
+ * pull, and the `runSync` tests all drive it. It models the three rules the
+ * real Postgres triggers enforce (spec 0005, `sync_stamp` and
+ * `sync_stamp_sticky_delete`), because the client behaviour under test only
+ * makes sense against a server that behaves that way:
  *
- * - It does **not** stamp `updated_at` unless a test asks it to, because the
- *   live Postgres does not either yet (there is no trigger). A test that wants
- *   to prove the device keeps the server's value says so explicitly.
- * - It does **not** arbitrate. Newest write wins on the server is spec 0002's
- *   design and is still owed; here the last write simply lands.
+ * - **It stamps `updated_at` itself**, distinctly per row, the way
+ *   `clock_timestamp()` does. `stampUpdatedAt` overrides it with a fixed value
+ *   for a test that wants to pin the exact instant.
+ * - **It freezes `created_at`** on a row it already holds.
+ * - **It refuses to revive a tombstone**, returning the stored row untouched,
+ *   which is how the pushing device learns it lost.
+ *
+ * What it still does not do is arbitrate on content: the last push wins, which
+ * is exactly what spec 0005 decided, because a server owned clock makes newest
+ * write and last push the same event.
  *
  * It lives in `test/support/` rather than beside the source, so none of it
  * can ever be imported by the app.
  */
+
+/** Where the fake server's clock starts. Distinct per row, like the real one. */
+const SERVER_EPOCH = Date.parse('2026-08-10T00:00:00.000Z');
 
 export type FakeServer = {
   readonly transport: SyncTransport;
@@ -43,6 +53,7 @@ export const createFakeServer = (): FakeServer => {
   const counts = { upserts: 0, selects: 0 };
   let offline: TransportFailure | undefined = undefined;
   let stamp: string | undefined = undefined;
+  let tick = 0;
 
   const tableOf = (name: string): Map<string, RemoteRow> => {
     const existing = tables.get(name);
@@ -61,15 +72,42 @@ export const createFakeServer = (): FakeServer => {
     message: 'The server could not be reached.',
   });
 
+  const isSet = (value: RemoteRow[string] | undefined): boolean =>
+    value !== null && value !== undefined;
+
+  /** `clock_timestamp()`, near enough: a distinct instant for every row. */
+  const serverStamp = (): string => {
+    tick += 1;
+    return new Date(SERVER_EPOCH + tick).toISOString();
+  };
+
+  /** What the trigger would store, given what is already there. */
+  const arbitrate = (incoming: RemoteRow, existing: RemoteRow | undefined): RemoteRow => {
+    // The sticky tombstone. The stored row wins whole, so an edit sent with
+    // the revival is discarded with it.
+    if (existing !== undefined && isSet(existing['deleted_at']) && !isSet(incoming['deleted_at'])) {
+      return existing;
+    }
+
+    return {
+      ...incoming,
+      // Frozen once the server holds the row, never restamped.
+      created_at:
+        (existing === undefined ? incoming['created_at'] : existing['created_at']) ?? null,
+      updated_at: stamp ?? serverStamp(),
+    };
+  };
+
   const transport: SyncTransport = {
     upsert: async (table, key, rows) => {
       counts.upserts += 1;
       if (offline !== undefined) return failure();
 
       const stored = rows.map((row) => {
-        const withStamp = stamp === undefined ? row : { ...row, updated_at: stamp };
-        tableOf(table).set(keyOf(row, key), withStamp);
-        return withStamp;
+        const identifier = keyOf(row, key);
+        const settled = arbitrate(row, tableOf(table).get(identifier));
+        tableOf(table).set(identifier, settled);
+        return settled;
       });
 
       return { kind: 'ok', rows: stored };
