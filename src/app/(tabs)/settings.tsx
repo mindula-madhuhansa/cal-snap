@@ -15,6 +15,7 @@ import { ListRow } from '@/design-system/components/list-row';
 import { Notice } from '@/design-system/components/notice';
 import { Screen } from '@/design-system/components/screen';
 import { colors } from '@/design-system/theme';
+import { GoalSection } from '@/onboarding/goal-section';
 
 /**
  * Settings, which for now is the account (spec 0004, AC-11, AC-14).
@@ -26,7 +27,6 @@ import { colors } from '@/design-system/theme';
 
 /** What will live here, listed so the screen reads as a plan rather than a gap. */
 const COMING = [
-  { key: 'target', title: 'Your daily target', subtitle: 'Arrives with onboarding' },
   { key: 'privacy', title: 'Privacy, terms and deletion', subtitle: 'Arrives before release' },
 ] as const;
 
@@ -158,6 +158,14 @@ export default function SettingsScreen() {
           />
         </View>
       )}
+
+      <Divider />
+
+      {/* Spec 0006, AC-12. Only once the account is ready, because it reads
+          the per account database file. */}
+      {account.kind === 'ready' ? (
+        <GoalSection db={account.db} userId={account.userId} />
+      ) : undefined}
 
       <Divider />
 
