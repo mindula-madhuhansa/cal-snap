@@ -203,6 +203,15 @@ const missingFrom = (answers: OnboardingAnswers): readonly string[] =>
  * One transaction is the point. Any failure part way leaves no profile, no
  * weigh in, no target, and the draft exactly as it was, so the person is on
  * the last screen with an honest message and nothing lost.
+ *
+ * **Both writes are upserts, and that is not defensive habit.** Pressing the
+ * finish button is retryable by design: the person is told their answers are
+ * saved and to try again, so the second press must be able to succeed. A bare
+ * insert cannot. `profiles` is keyed on `user_id` and `weight_entries` carries
+ * a unique index on `(user_id, on_date)` while live, so a profile row that
+ * exists but was never finished, a weigh in already logged today, or simply a
+ * first attempt that failed after the profile landed, all make an insert throw
+ * with the same unhelpful message and no way forward but reinstalling.
  */
 export const completeOnboarding = async (
   db: SqlDatabase,
@@ -234,7 +243,23 @@ export const completeOnboarding = async (
            exercise_credit, exercise_credit_factor, photo_sync_enabled,
            consented_at, consent_version, onboarded_at,
            created_at, updated_at, is_dirty, synced_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'full', 1, 0, ?, ?, ?, ?, ?, 1, NULL)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'full', 1, 0, ?, ?, ?, ?, ?, 1, NULL)
+         ON CONFLICT (user_id) DO UPDATE SET
+           age_years = excluded.age_years,
+           age_recorded_on = excluded.age_recorded_on,
+           sex = excluded.sex,
+           height_cm = excluded.height_cm,
+           activity_level = excluded.activity_level,
+           goal_direction = excluded.goal_direction,
+           goal_rate_kg_per_week = excluded.goal_rate_kg_per_week,
+           goal_weight_kg = excluded.goal_weight_kg,
+           unit_preference = excluded.unit_preference,
+           timezone = excluded.timezone,
+           consented_at = excluded.consented_at,
+           consent_version = excluded.consent_version,
+           onboarded_at = excluded.onboarded_at,
+           updated_at = excluded.updated_at,
+           is_dirty = 1`,
         [
           userId,
           answers.ageYears,
@@ -261,7 +286,13 @@ export const completeOnboarding = async (
         `INSERT INTO weight_entries (
            id, user_id, on_date, recorded_at, weight_kg, source,
            created_at, updated_at, deleted_at, is_dirty, synced_at
-         ) VALUES (?, ?, ?, ?, ?, 'onboarding', ?, ?, NULL, 1, NULL)`,
+         ) VALUES (?, ?, ?, ?, ?, 'onboarding', ?, ?, NULL, 1, NULL)
+         ON CONFLICT (id) DO UPDATE SET
+           recorded_at = excluded.recorded_at,
+           weight_kg = excluded.weight_kg,
+           updated_at = excluded.updated_at,
+           deleted_at = NULL,
+           is_dirty = 1`,
         [dayScopedId('weight_entries', userId, today), userId, today, at, answers.weightKg, at, at],
       );
 
@@ -274,11 +305,19 @@ export const completeOnboarding = async (
 
       await db.runAsync('DELETE FROM onboarding_draft WHERE user_id = ?', [userId]);
     });
-  } catch {
+  } catch (error) {
     // The transaction rolled back, so there is no profile and the draft is
-    // untouched. Say so plainly rather than leaking a database message.
+    // untouched.
+    //
+    // The reason is carried through rather than swallowed. "Please try again"
+    // on its own is only honest when trying again might work, and the failures
+    // that reach here are mostly deterministic: the same press will fail the
+    // same way for ever, and a person with no idea why has nothing to tell
+    // anyone. The detail is a sentence the app itself wrote, or a database
+    // message, never anything private.
+    const detail = error instanceof Error ? error.message : String(error);
     return failed(
-      'We could not finish setting up your profile. Your answers are saved, so please try again.',
+      `We could not finish setting up your profile. Your answers are saved, so nothing is lost. ${detail}`,
     );
   }
 

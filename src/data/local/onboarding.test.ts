@@ -42,6 +42,19 @@ const completeAnswers: CompleteAnswers = {
   consentedAt: '2026-08-10T08:00:00.000Z',
 };
 
+/**
+ * The same database, but one statement fails, standing in for a disk that
+ * filled up or a file that went bad partway through. The only way to reach the
+ * rollback now that both writes are upserts.
+ */
+const failingOn = (db: TestDatabase['db'], fragment: string): TestDatabase['db'] => ({
+  ...db,
+  runAsync: async (sql, params) => {
+    if (sql.includes(fragment)) throw new Error('the disk is full');
+    return db.runAsync(sql, params);
+  },
+});
+
 const complete = (overrides: Partial<CompleteAnswers> = {}) =>
   completeOnboarding(store.db, {
     userId: USER_A,
@@ -194,8 +207,113 @@ describe('completeOnboarding', () => {
       nextStep: 'height',
     });
 
-    // A weigh in already exists for today under the identifier the completing
-    // transaction will derive, so its insert collides on the primary key.
+    // Fails the very last statement, so the profile, the weigh in, and the
+    // target have all been written by the time it throws. That is the only
+    // interesting rollback: an early failure would prove nothing.
+    const failingDb = failingOn(store.db, 'DELETE FROM onboarding_draft');
+
+    const result = await completeOnboarding(failingDb, {
+      userId: USER_A,
+      answers: completeAnswers,
+      timezone: 'Asia/Colombo',
+      today: TODAY,
+      consentVersion: 'v1-test',
+    });
+
+    expect(result.kind).toBe('failed');
+    expect(await hasOnboarded(store.db, USER_A)).toBe(false);
+    expect(store.raw.prepare('select count(*) as n from profiles').get()).toMatchObject({ n: 0 });
+    expect(store.raw.prepare('select count(*) as n from weight_entries').get()).toMatchObject({
+      n: 0,
+    });
+    expect(store.raw.prepare('select count(*) as n from daily_targets').get()).toMatchObject({
+      n: 0,
+    });
+
+    const draft = await readDraft(store.db, USER_A);
+    if (draft.kind === 'ok') {
+      expect(draft.value?.sex).toBe('female');
+      expect(draft.value?.ageYears).toBe(35);
+    }
+  });
+
+  // covers: AC-6. The message is what the person acts on, and "please try
+  // again" alone is only honest when trying again might work. Most failures
+  // here are deterministic, so the reason comes through.
+  it('says what actually went wrong rather than only that something did', async () => {
+    const failingDb = failingOn(store.db, 'DELETE FROM onboarding_draft');
+
+    const result = await completeOnboarding(failingDb, {
+      userId: USER_A,
+      answers: completeAnswers,
+      timezone: 'Asia/Colombo',
+      today: TODAY,
+      consentVersion: 'v1-test',
+    });
+
+    if (result.kind === 'failed') {
+      expect(result.message).toContain('nothing is lost');
+      expect(result.message).toContain('disk is full');
+    }
+  });
+});
+
+/**
+ * The bug a real phone found on 10 August 2026, and the states that caused it.
+ *
+ * Finishing setup is retryable by design: the screen tells the person their
+ * answers are saved and to try again. So the second press has to be able to
+ * succeed. A bare insert could not, because `profiles` is keyed on `user_id`
+ * and `weight_entries` is unique on `(user_id, on_date)` while live, and every
+ * one of these states makes that insert throw with no way forward.
+ */
+describe('finishing setup a second time', () => {
+  it('succeeds after a first attempt that already wrote the profile', async () => {
+    const failingDb = failingOn(store.db, 'DELETE FROM onboarding_draft');
+    await completeOnboarding(failingDb, {
+      userId: USER_A,
+      answers: completeAnswers,
+      timezone: 'Asia/Colombo',
+      today: TODAY,
+      consentVersion: 'v1-test',
+    });
+
+    const second = await complete();
+
+    expect(second.kind).toBe('ok');
+    if (second.kind === 'ok') expect(second.value.calories).toBe(1613);
+    expect(await hasOnboarded(store.db, USER_A)).toBe(true);
+  });
+
+  it('leaves exactly one profile and one weigh in when pressed twice', async () => {
+    await complete();
+    const again = await complete();
+
+    expect(again.kind).toBe('ok');
+    expect(store.raw.prepare('select count(*) as n from profiles').get()).toMatchObject({ n: 1 });
+    expect(store.raw.prepare('select count(*) as n from weight_entries').get()).toMatchObject({
+      n: 1,
+    });
+  });
+
+  // A profile row that arrived but was never finished is exactly what routing
+  // sends to onboarding, so this is the state a person is most likely to be in.
+  it('completes over a profile row that exists but was never onboarded', async () => {
+    seedProfile(store.raw, USER_A, { onboarded: false });
+
+    const result = await complete();
+
+    expect(result.kind).toBe('ok');
+    expect(await hasOnboarded(store.db, USER_A)).toBe(true);
+
+    // The answers just given win over whatever the unfinished row held.
+    const profile = store.raw
+      .prepare('select age_years, sex, timezone from profiles where user_id = ?')
+      .get(USER_A);
+    expect(profile).toMatchObject({ age_years: 35, sex: 'female', timezone: 'Asia/Colombo' });
+  });
+
+  it('completes when a weigh in for today already exists', async () => {
     store.raw
       .prepare(
         `insert into weight_entries (id, user_id, on_date, recorded_at, weight_kg, source,
@@ -213,19 +331,11 @@ describe('completeOnboarding', () => {
 
     const result = await complete();
 
-    expect(result.kind).toBe('failed');
-    if (result.kind === 'failed') {
-      expect(result.message).toContain('answers are saved');
-    }
-
-    expect(await hasOnboarded(store.db, USER_A)).toBe(false);
-    expect(store.raw.prepare('select count(*) as n from profiles').get()).toMatchObject({ n: 0 });
-
-    const draft = await readDraft(store.db, USER_A);
-    if (draft.kind === 'ok') {
-      expect(draft.value?.sex).toBe('female');
-      expect(draft.value?.ageYears).toBe(35);
-    }
+    expect(result.kind).toBe('ok');
+    const weighIn = store.raw
+      .prepare('select weight_kg, is_dirty from weight_entries where user_id = ?')
+      .get(USER_A);
+    expect(weighIn).toMatchObject({ weight_kg: 70, is_dirty: 1 });
   });
 
   // covers: AC-6. `profiles` holds only complete answer sets, so an incomplete
