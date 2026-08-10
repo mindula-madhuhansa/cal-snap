@@ -1,7 +1,7 @@
 # 0006. Onboarding and the daily calorie target for CalSnap
 
 **Date**: 2026-08-10
-**Status**: Proposed
+**Status**: In Progress
 
 ## Summary
 
