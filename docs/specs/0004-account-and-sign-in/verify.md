@@ -65,6 +65,24 @@ The three environment variables and the Postgres identity change were already li
 - [ ] Tap the password field → the platform password manager offers to fill it. Tap the code field with a code in the inbox → the one time code is offered above the keyboard → AC-16
 - [ ] Every button on these screens measures at least 44 points → AC-16
 
+## The phone, first real run (10 August 2026)
+
+An Android development build, signed in by emailed code, with the Supabase API logs read back afterwards rather than trusted from the screen. This is the run that proved the Clerk token is actually honoured, which nothing before it could.
+
+**How it was proven, since a passing look is not proof here.** Every `GET` returns `200` with an empty array whether or not the token is accepted, because row level security hides rows rather than refusing the request. So a `profiles` row was seeded server side for the signed in Clerk id with `onboarded_at` set, and the app was relaunched. The phone then pulled `profiles` with `updated_at=gte.2026-08-10T09:10:31.189Z`, exactly the seeded row's `updated_at`. It could only know that value by reading the row, storing it, and advancing its watermark. The row was deleted afterwards and all six tables are back to zero.
+
+- [x] Sign up by emailed code on a development build, then land in the app signed in → AC-1
+- [x] The startup profile pull runs before routing: `GET /rest/v1/profiles?select=onboarded_at&user_id=eq.user_3Hi…` → AC-6
+- [x] With a profile present carrying `onboarded_at`, the app routes to Today rather than the onboarding placeholder, on a device whose local file had no such row. This is the "onboarded on another phone" case, reached for real → AC-6
+- [x] Every Supabase request carries the Clerk session token, proven by the pull returning a row that row level security only releases to a matching `sub` → AC-15, AC-7
+- [x] `runSync` pulls all six tables in dependency order, keyset ordered `(updated_at asc, key asc)`, `limit=500` → AC-10
+- [x] A table with no `sync_state` row pulls from the beginning of time: the first run asked `gte.1970-01-01T00:00:00.000Z` on all six → AC-9
+- [x] The pull watermark advances after a pull that returned rows: the next run asked from the row's own `updated_at` instead → AC-9
+- [ ] A meal saved on the phone reaches the server → **still owed, and not yet possible**: nothing in the app writes a row until scope feature 6 builds onboarding. The push half of sync has therefore never run on a device, only the pull half
+- [ ] Everything on a screen beyond the door: the failure sentences, the session ending, the draining flow, the accessibility sweep
+
+**Found by reading the logs, not by looking at the app.** Each launch fires **two** complete six table pulls, one from `AccountProvider`'s step 3b and one from `SyncProvider`'s sign in trigger. Harmless, `runSync` is safe to repeat, but it doubles the request the restoring screen holds a person waiting for. Recorded as a minor in the 10 August review and now confirmed in production traffic.
+
 ## Value sourcing (one step per row, so a mis sourced value is caught)
 
 - [ ] Every row written on the device carries `user_id` equal to the Clerk `sub` → read a saved row and compare it with the identifier in Settings → AC-7
@@ -96,11 +114,13 @@ Not hand written strings: a real Supabase client wrapped in the real `createSupa
 
 ## Acceptance-criteria coverage
 
-- AC-1, AC-2, AC-4, AC-5, AC-6, AC-14 · covered by the door steps, confirmed by hand on 9 August 2026
+- AC-1, AC-6 · **proven on a phone on 10 August 2026**, with the Supabase logs read back as evidence rather than the screen alone
+- AC-2, AC-4, AC-5, AC-14 · covered by the door steps, confirmed by hand on 9 August 2026, and worth rerunning since they predate slices 2 and 3
+- AC-9, AC-10 · the **pull** half is proven on a phone (all six tables, keyset ordered, from the beginning of time, watermark advancing). The **push** half has never run on a device and cannot until scope feature 6 writes something
 - AC-3 · withdrawn on 9 August 2026, nothing to verify
-- AC-7 · **the isolation half is proven** on the live database (schema, policies, and a real unauthenticated request against a table holding a row). The on device half, that every row this app writes carries the Clerk `sub`, still needs the phone
-- AC-15 · **the negative half is proven**: the publishable key alone reads nothing, writes nothing, and a forged token is rejected. The positive half, that every request the app sends carries the Clerk token, needs the app running
-- AC-8 · needs the phone
+- AC-7 · **proven both ways** · unauthenticated requests see nothing (a real request against a table holding a row), and an authenticated one sees exactly its own row (the phone run, 10 August). What is still owed is only the write direction, which needs a feature that writes
+- AC-15 · **proven** · the publishable key alone reads nothing, writes nothing, and a forged token is rejected; and the app's own requests do carry the Clerk token, shown by the phone pulling a row that row level security only releases to a matching `sub`
+- AC-8 · needs the phone, and specifically a second account signed in on the same device
 - AC-9, AC-10, AC-11, AC-11b · covered by the sync steps, built and gate green, not yet run on a phone
 - AC-12, AC-13, AC-16 · covered by the slice 3 steps, built and gate green, not yet run on a phone. The screen reader half needs both platforms, and the session ending step needs the Clerk dashboard open beside the phone
 
