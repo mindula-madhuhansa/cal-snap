@@ -75,6 +75,23 @@ export const GoalSection = ({ db, userId }: GoalSectionProps) => {
     let cancelled = false;
 
     void (async () => {
+      try {
+        await read();
+      } catch (error) {
+        // Expected failures come back as values; a database that cannot be
+        // read at all still throws, and without this the section would sit on
+        // its loading line for ever with nothing said.
+        if (!cancelled) {
+          setFailure(
+            `We could not read your daily target on this phone. ${
+              error instanceof Error ? error.message : 'Please try again.'
+            }`,
+          );
+        }
+      }
+    })();
+
+    async function read(): Promise<void> {
       const timezone = deviceTimeZone();
       const day = resolveLocalDay(new Date(), timezone);
       if (day.kind === 'failed') {
@@ -108,7 +125,7 @@ export const GoalSection = ({ db, userId }: GoalSectionProps) => {
         override: override.kind === 'ok' ? override.value : undefined,
         today: day.value,
       });
-    })();
+    }
 
     return () => {
       cancelled = true;
@@ -132,14 +149,24 @@ export const GoalSection = ({ db, userId }: GoalSectionProps) => {
     setConfirmation(undefined);
 
     void (async () => {
-      const message = await work();
-      if (message !== undefined) setConfirmation(message);
-      // Read back rather than patched in memory, so what the section shows is
-      // what the database holds and a write that stored something else cannot
-      // go unnoticed.
-      setReloads((previous) => previous + 1);
-      setBusy(false);
-      setEditing(false);
+      try {
+        const message = await work();
+        if (message !== undefined) setConfirmation(message);
+      } catch (error) {
+        setFailure(
+          `That change could not be saved. ${
+            error instanceof Error ? error.message : 'Please try again.'
+          }`,
+        );
+      } finally {
+        // Read back rather than patched in memory, so what the section shows
+        // is what the database holds and a write that stored something else
+        // cannot go unnoticed. In `finally`, so a thrown write still clears
+        // `busy` rather than leaving every button disabled for good.
+        setReloads((previous) => previous + 1);
+        setBusy(false);
+        setEditing(false);
+      }
     })();
   };
 

@@ -96,7 +96,16 @@ export const useOnboarding = (db: SQLiteDatabase, userId: string): OnboardingFlo
     let cancelled = false;
 
     const load = async (): Promise<void> => {
-      const draft = await readDraft(sql, userId);
+      // The data layer returns expected failures as values, but a database
+      // that cannot be read at all still throws. Without this the screen would
+      // sit on "Picking up where you left off" for ever, which reads exactly
+      // like the app having lost the answers.
+      const draft = await readDraft(sql, userId).catch((error: unknown) => ({
+        kind: 'failed' as const,
+        message: `We could not read your answers on this phone. ${
+          error instanceof Error ? error.message : 'Please try again.'
+        }`,
+      }));
       if (cancelled) return;
 
       if (draft.kind === 'failed') {
@@ -141,7 +150,12 @@ export const useOnboarding = (db: SQLiteDatabase, userId: string): OnboardingFlo
           userId,
           answers: given,
           nextStep: target,
-        });
+        }).catch((error: unknown) => ({
+          kind: 'failed' as const,
+          message: `That answer could not be saved on this phone. ${
+            error instanceof Error ? error.message : 'Please try again.'
+          }`,
+        }));
 
         if (saved.kind === 'failed') {
           showStep(phase.step, { ...phase.answers, ...given }, saved.message);
@@ -167,8 +181,18 @@ export const useOnboarding = (db: SQLiteDatabase, userId: string): OnboardingFlo
     void (async () => {
       // The step moves in the draft too, so force quitting after going back
       // returns to the question the person was actually looking at.
-      const saved = await saveDraftStep(sql, { userId, answers: {}, nextStep: target });
-      showStep(target, saved.kind === 'ok' ? { ...phase.answers, ...saved.value } : phase.answers);
+      // A failure here is not worth a message: the person asked to go back,
+      // and they do, with every answer intact. Only the remembered step is
+      // stale, and the next answer rewrites it.
+      const saved = await saveDraftStep(sql, { userId, answers: {}, nextStep: target }).catch(
+        () => undefined,
+      );
+      showStep(
+        target,
+        saved !== undefined && saved.kind === 'ok'
+          ? { ...phase.answers, ...saved.value }
+          : phase.answers,
+      );
     })();
   }, [phase, sql, userId, markBusy, showStep]);
 
@@ -193,7 +217,13 @@ export const useOnboarding = (db: SQLiteDatabase, userId: string): OnboardingFlo
         timezone,
         today: day.value,
         consentVersion: CONSENT_VERSION,
-      });
+      }).catch((error: unknown) => ({
+        kind: 'failed' as const,
+        message:
+          `We could not finish setting up your profile. Your answers are saved, so please try again. ${
+            error instanceof Error ? error.message : ''
+          }`.trim(),
+      }));
 
       if (written.kind === 'failed') {
         showStep(phase.step, phase.answers, written.message);
