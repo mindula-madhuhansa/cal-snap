@@ -2,6 +2,7 @@
 
 **Date**: 2026-08-08
 **Status**: Accepted
+**Amended**: 2026-08-10, for identity only. Spec [0004](../0004-account-and-sign-in/index.md) chose Clerk over Supabase Auth, which reverses the Auth row below and changes which public keys ship. The amended lines are marked. Nothing else in this stack decision moved, and the amendment does not reopen it.
 
 ## Summary
 
@@ -23,7 +24,7 @@ These are light acceptance criteria derived from the chosen stack. They describe
 - **AC-6**: Lint, format, and typecheck run clean, and run automatically before a commit.
 - **AC-7**: A push to GitHub runs lint, typecheck, and tests.
 - **AC-7b**: Required configuration is parsed and validated once at startup and fails loudly when a value is missing, rather than failing later and mysteriously.
-- **AC-8**: No secret of any kind is present in the app bundle or in the repository. The Supabase project URL and anonymous key are not secrets and may ship; the Anthropic API key may not.
+- **AC-8**: No secret of any kind is present in the app bundle or in the repository. The Supabase project URL, the Supabase publishable key, and the Clerk publishable key are not secrets and may ship; the Anthropic API key may not. _(Amended 10 August 2026: this originally named the Supabase anonymous key. Spec 0004 replaced it with the `sb_publishable_` key, which rotates on its own rather than with the project's whole JWT secret, and added the Clerk key. The criterion is unchanged in substance: what ships is a public identifier, and what protects the data is row level security.)_
 
 ## Decision
 
@@ -44,9 +45,9 @@ These are light acceptance criteria derived from the chosen stack. They describe
 | Camera | `expo-camera` | |
 | Screen state | Zustand | Small, plain functions, no boilerplate, fits the functional standard in `AGENTS.md` |
 | Local data | `expo-sqlite` | Real tables, because history and weight trends are queries, not blobs |
-| Backend | Supabase | Postgres, auth, and edge functions in one |
+| Backend | Supabase | Postgres, storage, and edge functions. **Amended 10 August 2026**: auth is no longer Supabase's, see the Auth row |
 | Sync | Hand written background push and pull | Write local first, reconcile on launch and on foreground |
-| Auth | Supabase Auth | The mechanism only. Which sign in methods to offer is scope feature 5's decision, not this one |
+| Auth | **Clerk** (amended 10 August 2026; was Supabase Auth) | Spec [0004](../0004-account-and-sign-in/index.md) reversed this row during feature 5. Supabase Postgres still enforces isolation itself, but it validates a Clerk issued token, so every `user_id` column is `text` holding the Clerk identifier and every policy reads `auth.jwt() ->> 'sub'` rather than `auth.uid()`. Which sign in methods to offer was and remains feature 5's decision; it landed on email only |
 | AI vision | Claude Sonnet 5 (`claude-sonnet-5`) via a Supabase edge function | Structured outputs return the exact JSON shape; roughly one cent per scan, derived below |
 | Build and release | EAS Build, EAS Submit, EAS Update | Over the air updates for JavaScript only fixes |
 | Continuous integration | GitHub Actions | Lint, typecheck, and test on push |
@@ -70,7 +71,7 @@ These are light acceptance criteria derived from the chosen stack. They describe
 
 **Folder shape**: `folder-by-feature`, as `AGENTS.md` records. Each feature owns its screen, its logic, its types, and its tests in one directory, mirroring the feature list in `docs/scope/scope.md`. Shared theme and primitives live in one design system directory that every feature imports.
 
-**The secret boundary**: the app holds the Supabase project URL and the anonymous key, both of which are safe to ship because row level security is what actually protects the data. The Anthropic API key lives only in the edge function's environment. No build of the app ever contains it.
+**The secret boundary**: the app holds the Supabase project URL, the Supabase publishable key, and the Clerk publishable key. All three are safe to ship, because row level security is what actually protects the data and every policy now requires a valid Clerk token, so the publishable key grants nothing on its own. The Anthropic API key lives only in the edge function's environment. No build of the app ever contains it. _(Amended 10 August 2026: the anonymous key became the publishable key and the Clerk key joined it, per spec 0004. The boundary itself did not move.)_
 
 ## Consequences
 

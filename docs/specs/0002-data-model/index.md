@@ -2,6 +2,9 @@
 
 **Date**: 2026-08-09
 **Status**: In Progress
+**Amended**: 2026-08-10, for identity only. Spec [0004](../0004-account-and-sign-in/index.md) chose Clerk over Supabase Auth, so `user_id` is `text` holding a Clerk identifier rather than a `uuid` referencing `auth.users`, every policy reads `auth.jwt() ->> 'sub'`, and account deletion has no cascade behind it any more. The amended lines are marked. Every other rule here (tombstones, newest write wins, the day rules, the totals, the parity guarantee) is untouched, and the change cost nothing to make because no row existed yet.
+
+The amended state is confirmed against the live project rather than assumed: all six tables carry `user_id text`, row level security is enabled **and** forced on each, every policy is `(user_id = (select auth.jwt() ->> 'sub'))` for the `authenticated` role, and the only foreign keys left in the schema are `meal_items.meal_id` and `meals.scan_id`.
 
 ## Summary
 
@@ -20,7 +23,7 @@ CalSnap stores a person's diary in two places at once: SQLite on the phone, so e
 **Acceptance criteria** (the contract, each criterion is IDed and independently checkable):
 
 - **AC-1**: Each table is declared once in TypeScript. The SQLite statements and the Postgres statements are both produced from that declaration, and a test proves that the column names, types, nullability, and checks match on both sides.
-- **AC-2**: Every table carries `user_id`, has row level security enabled and forced, and has a policy of the form `(select auth.uid()) = user_id`. A signed in user selecting another user's rows receives zero rows, not an error.
+- **AC-2**: Every table carries `user_id`, has row level security enabled and forced, and has a policy of the form `user_id = (select auth.jwt() ->> 'sub')`. A signed in user selecting another user's rows receives zero rows, not an error. _(Amended 10 August 2026: the policy form was `(select auth.uid()) = user_id`. `auth.uid()` reads Supabase Auth's own identity and returns null against a Clerk token, so it would match nothing rather than fail loudly. The property being asserted is unchanged, only the claim the policy reads.)_
 - **AC-3**: A meal saved at 23:50 local time is filed under that local calendar date. Reading "today" returns it, whatever the device's offset from UTC is, and reading it again after the device moves timezone still returns the same date.
 - **AC-4**: Rows are created on the device with a UUID version 7 identifier and keep that identifier after syncing. Nothing is renumbered, and no row waits on the server to be named.
 - **AC-5**: Deleting a meal sets `deleted_at` rather than removing the row. After one sync cycle the second device no longer shows it, and it does not reappear on any later pull.
@@ -28,7 +31,7 @@ CalSnap stores a person's diary in two places at once: SQLite on the phone, so e
 - **AC-7**: A meal's total and a day's total are computed as a sum over the live (not deleted) items at read time. No total is stored, so no total can disagree with its parts.
 - **AC-8**: Each meal item records whether its numbers came from a scan, from a hand entry, or from a scan the user edited, and each scan records its confidence, so a screen can mark an estimate as an estimate.
 - **AC-9**: A `daily_targets` row is written once per user per day, on first use of that day, and is never recomputed afterwards. Reading a past day returns the target that applied on that day, not today's.
-- **AC-10**: Deleting the account removes every row belonging to that user across every table, including tombstones and any stored photo, through cascades from the auth user.
+- **AC-10**: Deleting the account removes every row belonging to that user across every table, including tombstones and any stored photo. _(Amended 10 August 2026: this originally said "through cascades from the auth user". There is no such cascade any more. Clerk holds the account and has no reach into this database, so nothing is removed by itself and the work is now an explicit, idempotent delete driven by Clerk's `user.deleted` webhook. The criterion is deliberately left as an outcome rather than a mechanism, because the outcome is what has to be true. **This is the one place the Clerk decision made something weaker rather than equivalent**, and it stays open until scope feature 10 builds the webhook.)_
 - **AC-11**: Signing in as a different user on the same phone opens a different local database file. No row belonging to the previous account is readable or syncable from the new session.
 - **AC-12**: Weight is stored only in kilograms and height only in centimetres. Changing the unit preference changes what is displayed and never what is stored.
 - **AC-13**: Macro grams survive a round trip between Postgres `numeric(6,1)` and SQLite `REAL` unchanged to one decimal place, and a day's totals agree on both sides.
@@ -57,11 +60,19 @@ Two tables are the exception. `daily_targets` and `weight_entries` are naturally
 
 `updated_at` is stamped **by the server**, not by the device, and the device stores the value the server returns. A device sets its own `updated_at` only while a row is still local and unpushed. This matters because newest write wins is the only arbitration there is, and a phone with a wrong clock would otherwise win every conflict forever.
 
+**`user_id` is `text`, not `uuid`, and has no foreign key** (amended 10 August 2026, spec 0004). It holds the Clerk identifier, which looks like `user_2abc...` and is not a UUID. There is nothing in this database for it to reference, because the account lives at Clerk, so the column stands alone and its correctness is enforced by the policy rather than by a constraint.
+
+Three things this deliberately did **not** change, each of which looks like it should have:
+
+- **SQLite is untouched.** It renders both `uuid` and `text` as `TEXT`, and the `auth.users` foreign key was Postgres only, so the generated SQLite migration came out byte identical. No phone migrated anything.
+- **The day scoped identifiers still work.** `daily_targets` and `weight_entries` key on a UUID version 5 over the namespace, the `user_id`, and the `on_date`. Version 5 hashes a string, and a Clerk identifier is a string.
+- **The `select` wrapper on the policy stayed.** It is there so Postgres evaluates the claim once per statement rather than once per row, and that reasoning is about the subselect, not about which function is inside it.
+
 `profiles` (one row per user, no `deleted_at`: removing a profile means removing the account)
 
 | Column | Type | Notes |
 |---|---|---|
-| `user_id` | `uuid` | primary key, references `auth.users(id)` on delete cascade |
+| `user_id` | `text` | primary key, the Clerk identifier, no foreign key (amended 10 August 2026) |
 | `age_years` | `integer` | required, check between 13 and 120 |
 | `age_recorded_on` | `date` | required, so age advances without inventing a birthday |
 | `sex` | `text` | required, check in `female`, `male` |
@@ -84,7 +95,7 @@ Two tables are the exception. `daily_targets` and `weight_entries` are naturally
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `uuid` | primary key |
-| `user_id` | `uuid` | required, references `auth.users(id)` on delete cascade |
+| `user_id` | `text` | required, the Clerk identifier, no foreign key (amended 10 August 2026) |
 | `on_date` | `date` | required, the user's local calendar date |
 | `calories` | `integer` | required, check greater than 0 |
 | `protein_g` `carbs_g` `fat_g` | `numeric(6,1)` | optional, the macro split for that day |
@@ -98,7 +109,7 @@ Unique on `(user_id, on_date)` where `deleted_at is null`. Indexed on `(user_id,
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `uuid` | primary key |
-| `user_id` | `uuid` | required, references `auth.users(id)` on delete cascade |
+| `user_id` | `text` | required, the Clerk identifier, no foreign key (amended 10 August 2026) |
 | `eaten_on` | `date` | required, the local calendar date decided at save time |
 | `eaten_at` | `timestamptz` | required, the exact instant |
 | `tz_at_save` | `text` | required, the IANA zone the device was in when saved |
@@ -118,7 +129,7 @@ Indexed on `(user_id, eaten_on)` where `deleted_at is null`, and on `scan_id`.
 |---|---|---|
 | `id` | `uuid` | primary key |
 | `meal_id` | `uuid` | required, references `meals(id)` on delete cascade |
-| `user_id` | `uuid` | required, carried for row level security so no policy needs a join |
+| `user_id` | `text` | required, the Clerk identifier, carried for row level security so no policy needs a join (amended 10 August 2026) |
 | `name` | `text` | required |
 | `position` | `integer` | required, the order on the plate |
 | `base_per` | `numeric(6,1)` | required, default 100, the amount the base numbers describe |
@@ -141,7 +152,7 @@ Indexed on `meal_id`, on `user_id`, and on `(user_id, lower(name))` for the "add
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `uuid` | primary key |
-| `user_id` | `uuid` | required, references `auth.users(id)` on delete cascade |
+| `user_id` | `text` | required, the Clerk identifier, no foreign key (amended 10 August 2026) |
 | `model` | `text` | required, the model identifier used |
 | `prompt_version` | `text` | required |
 | `status` | `text` | required, check in `ok`, `low_confidence`, `unrecognised`, `failed` |
@@ -156,7 +167,7 @@ Indexed on `(user_id, created_at)`. This index is the scan counter: a count over
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `uuid` | primary key |
-| `user_id` | `uuid` | required, references `auth.users(id)` on delete cascade |
+| `user_id` | `text` | required, the Clerk identifier, no foreign key (amended 10 August 2026) |
 | `on_date` | `date` | required, local calendar date |
 | `recorded_at` | `timestamptz` | required |
 | `weight_kg` | `numeric(5,2)` | required, check between 20 and 500 |
@@ -169,7 +180,7 @@ Unique on `(user_id, on_date)` where `deleted_at is null`: one weigh in per day,
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `uuid` | primary key |
-| `user_id` | `uuid` | required, references `auth.users(id)` on delete cascade |
+| `user_id` | `text` | required, the Clerk identifier, no foreign key (amended 10 August 2026) |
 | `on_date` | `date` | required, local calendar date |
 | `performed_at` | `timestamptz` | required |
 | `tz_at_save` | `text` | required |
@@ -192,9 +203,9 @@ This is where the pull watermark lives. Without it the device has no memory of h
 
 `subscriptions` (designed only, not created by this spec)
 
-`user_id` primary key referencing the auth user, plus `plan`, `status`, `provider`, `provider_ref`, and `current_period_end`. Release 1 treats every account as free with no scan limit. When billing is built, this table is added and nothing existing changes.
+`user_id text` primary key holding the Clerk identifier (amended 10 August 2026; it read "primary key referencing the auth user"), plus `plan`, `status`, `provider`, `provider_ref`, and `current_period_end`. Release 1 treats every account as free with no scan limit. When billing is built, this table is added and nothing existing changes.
 
-Relationships: the auth user has one profile and many of everything else. A meal has many items. A scan produces zero or one meal, because a scan the user discards still leaves its record and its cost.
+Relationships: the account has one profile and many of everything else. A meal has many items. A scan produces zero or one meal, because a scan the user discards still leaves its record and its cost. _(Amended 10 August 2026: this said "the auth user". The account is a Clerk record now and is not a row in this database, so the relationship is real but only one end of it lives here.)_
 
 **State transitions**
 
@@ -275,7 +286,7 @@ There are no HTTP endpoints in release 1. The surface is a set of data access fu
 
 **Security model**
 
-Isolation is enforced by Postgres, not by application code. Every table gets:
+Isolation is enforced by Postgres, not by application code. Every table gets (amended 10 August 2026: the claim read was `auth.uid()`):
 
 ```sql
 alter table <t> enable row level security;
@@ -283,25 +294,35 @@ alter table <t> force row level security;
 
 create policy <t>_own_rows on <t>
   for all to authenticated
-  using      (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
+  using      (user_id = (select auth.jwt() ->> 'sub'))
+  with check (user_id = (select auth.jwt() ->> 'sub'));
 
 create index <t>_user_id_idx on <t> (user_id);
 ```
 
-`auth.uid()` is wrapped in a `select` so Postgres evaluates it once for the statement rather than once per row, and `user_id` is indexed on every table because every policy tests it. `meal_items` carries its own `user_id` rather than reaching through `meal_id`, so no policy needs a join.
+The claim is wrapped in a `select` so Postgres evaluates it once for the statement rather than once per row, and `user_id` is indexed on every table because every policy tests it. `meal_items` carries its own `user_id` rather than reaching through `meal_id`, so no policy needs a join.
+
+**Where the identity comes from now.** Supabase is registered with Clerk as a third party auth provider, so Postgres verifies the token's signature against Clerk's published keys before any policy runs. `sub` is the Clerk user identifier out of that verified token, and the token also carries `role: authenticated` so these policies apply at all. A device cannot forge either: it is rejected before the policy is reached. The guarantee is exactly the one this spec started with, that isolation is a property of the database rather than of every query being written correctly forever. Only the issuer of the identity changed.
+
+**`auth.uid()` is now a trap, and it is worth saying plainly.** It is still a real function and it still runs. Against a Clerk token it simply returns null, so a policy written from any Supabase example silently matches **nothing** instead of failing. A policy that matches nothing looks like a permissions bug and reads like an empty table; the far worse version is the same mistake in a `with check`, which would let rows through. Nothing in the codebase catches this yet. See Follow-up.
 
 On the phone, isolation is physical: each account gets its own SQLite file named for the user, opened on sign in and closed on sign out. Two accounts cannot share a file, so a missed filter cannot leak between them.
 
 **Sign out removes the file**, once every dirty row has been pushed. If a push is still pending, the file stays and is retried on the next sign in, because losing unsynced meals would be worse than holding them. Nothing is kept for convenience: a signed out account leaves no diary on the device. This matters on a shared or family phone, where otherwise a full health record would sit on disk indefinitely after someone signs out.
 
-**Deleting the account removes three things, not one.** A foreign key cascade only reaches rows in tables, so it handles the diary and the tombstones. It does not touch Supabase Storage, and it does not touch the phone. The full path is: the database rows go by cascade from `auth.users`; the stored photos go by an edge function that deletes the whole `<user_id>/` prefix from the storage bucket; the local database file and any local photo files are removed on the device. All three are required for AC-10 to be true, and the storage step is the one a cascade silently will not do.
+**Deleting the account removes three things, not one, and none of them happens by itself** (amended 10 August 2026). This paragraph originally leaned on a foreign key cascade from `auth.users` for the first of the three. That cascade no longer exists: Clerk owns the account and has no reach into this database, so deleting a person in Clerk currently leaves their whole diary in Postgres. The full path is now:
 
-**Compliance scope**: consumer wellness, not regulated medical data. No HIPAA obligations apply and no audit log of reads is built. What does apply, and what the schema must support: explicit consent recorded before health details are collected (`consented_at`, `consent_version`), a delete that genuinely removes everything (cascades from `auth.users`, plus the stored photos), and an export of everything one user has. Health values never appear in logs. If this app ever moves toward clinical use, a read audit log becomes mandatory and is a schema change, so the decision is recorded here rather than assumed away.
+1. **The database rows**, by an explicit delete for that `sub` across all six tables, tombstones included. Driven by Clerk's `user.deleted` webhook into a Supabase edge function, and it must be idempotent, because a webhook can arrive twice.
+2. **The stored photos**, by that same function deleting the whole `<user_id>/` prefix from the storage bucket. A cascade never did this one either.
+3. **The local database file** and any local photo files, removed on the device.
+
+All three are required for AC-10 to be true. Step 1 used to be free and now is not, which makes it the piece most likely to be forgotten, so it is written here as work rather than as a property. Scope feature 10 owns building it.
+
+**Compliance scope**: consumer wellness, not regulated medical data. No HIPAA obligations apply and no audit log of reads is built. What does apply, and what the schema must support: explicit consent recorded before health details are collected (`consented_at`, `consent_version`), a delete that genuinely removes everything (the three steps above, plus the stored photos), and an export of everything one user has. Health values never appear in logs, and neither does a session token. If this app ever moves toward clinical use, a read audit log becomes mandatory and is a schema change, so the decision is recorded here rather than assumed away. _(Amended 10 August 2026: this said the delete happens by cascades from `auth.users`. Under Clerk the obligation is unchanged and the mechanism is not automatic, which is a difference worth knowing when someone asks whether the app can honour a deletion request today. It cannot, until feature 10 lands.)_
 
 **Configuration required**
 
-This spec introduces no new environment variables. The Supabase project URL and anonymous key arrive with feature 5 and are already reserved in `.env.example`. Two operational settings belong to the retention sweep and are recorded here rather than invented later:
+This spec introduces no new environment variables. Three arrive with feature 5 and are specified there: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`. _(Amended 10 August 2026: this named the Supabase anonymous key, which spec 0004 replaced with the publishable key, and it predated Clerk.)_ Two operational settings belong to the retention sweep and are recorded here rather than invented later:
 
 - Tombstone retention: 90 days, after which a soft deleted row is removed.
 - Raw scan response retention: 90 days, after which `meal_scans.raw_response` is set to null while the rest of the row stays.
@@ -337,7 +358,7 @@ Ordered the Skateboard way: the thinnest usable whole first. Steps 1 to 4 give a
 6. [x] Build the per user database file lifecycle: open and migrate a database named for the signed in user, and on sign out remove the file once nothing is left unpushed, satisfies **AC-11**.
 7. [x] Generate the Supabase migration for the same six tables, with row level security enabled and forced, one policy and one `user_id` index per table, and an index on every foreign key, satisfies **AC-2**.
 8. [ ] Add the sync columns, the `sync_state` watermark table, and the push and pull functions. Pushes upsert on the primary key so a replay is idempotent, the server stamps `updated_at`, a deleted row always wins, and pulls resume by keyset from the stored watermark, satisfies **AC-5**, **AC-14**, **AC-16**.
-9. [ ] Add the account deletion path in all three places it has to reach: the cascade from the auth user, an edge function removing the user's storage prefix, and removal of the local database and photo files on the device, satisfies **AC-10**.
+9. [ ] Add the account deletion path in all three places it has to reach: an idempotent edge function behind Clerk's `user.deleted` webhook that deletes every row for that `sub` and removes the user's storage prefix, and removal of the local database and photo files on the device, satisfies **AC-10**. _(Amended 10 August 2026: the first of the three used to read "the cascade from the auth user" and was free. It is now real work, and scope feature 10 owns it.)_
 10. [ ] Add the retention sweep for tombstones and raw scan responses, satisfies **AC-17**.
 11. [ ] Add `exercise_entries` as SQLite migration 3 and the matching Supabase migration when release 2 begins. Purely additive, nothing above changes. This step is outside the release 1 contract and carries no acceptance criterion here; feature 12 owns its criteria.
 
@@ -363,6 +384,22 @@ security advisors report nothing.
 That proves the structural half of **AC-2**. Its behavioural half, a signed
 in user selecting another user's rows and receiving zero rows, still needs a
 real session, so it lands with feature 5.
+
+**Identity change applied (10 August 2026, spec 0004).** The paragraph above is
+kept as the record of what was true on 9 August. It is no longer current. Feature
+5 moved identity to Clerk, and the live project was re checked on 10 August
+rather than assumed: all six tables now carry `user_id text`, row level security
+is still enabled **and** forced on every one, and every policy reads
+`(user_id = (select auth.jwt() ->> 'sub'))` for the `authenticated` role. The
+only foreign keys left anywhere in the schema are `meal_items.meal_id` and
+`meals.scan_id`; the six `auth.users` references are gone. The change was free
+because the tables held zero rows, and the SQLite side did not move at all.
+
+The behavioural half of **AC-2** is still owed, and it now needs one more thing
+before it can be run: Clerk registered with Supabase as a third party auth
+provider with `role: authenticated` on the session token. Without it every
+request is unauthenticated and every policy denies, which passes for the wrong
+reason.
 
 Steps 8 to 10 wait for feature 5 too, which brings the Supabase client, a
 signed in session, and the scheduling the retention sweep needs.
@@ -393,6 +430,9 @@ up front avoids altering six shipped tables later.
 - SQLite has no exact decimal type, so macros are stored as `REAL` there and rounded on write to stay equal to Postgres. That rounding is a rule the code must keep, not something the database enforces.
 - Carrying `user_id` on `meal_items` duplicates what `meal_id` already implies. It is deliberate, for policy speed, and it is one more column that could be set wrongly.
 - No read audit log. Correct for consumer wellness, and it means you cannot answer "who looked at this" if the product ever moves toward clinical use.
+- **Account deletion stopped being automatic** (added 10 August 2026, spec 0004). The `auth.users` cascade was doing real work for free, and moving identity to Clerk removed it. Until feature 10 builds the webhook, deleting a person in Clerk leaves their entire diary in Postgres. In a health app that is the most serious open item in this spec, and it is the one place the Clerk decision made this data model weaker rather than equivalent.
+- **`auth.uid()` became a silent trap** (added 10 August 2026). Every Supabase example, and most of what a model has memorised, writes policies with it. Against a Clerk token it returns null, so a wrong policy matches nothing rather than erroring. Nothing catches this yet.
+- **`user_id` lost its foreign key**, so nothing at the database level stops a row being written for an identifier that no account owns. The policy is what prevents it, since a client can only ever write its own verified `sub`, but the constraint that used to make it structurally impossible is gone.
 
 **Neutral**
 
@@ -404,7 +444,9 @@ up front avoids altering six shipped tables later.
 
 - [ ] The design at `docs/design/CalSnap.dc.html` includes an "Add by hand" food search screen. This spec sources it from the user's own past items, which is empty on a new account. Feature 8 should design what that screen says on day one, or the deferred food database moves forward.
 - [ ] The design shows a day streak on the Today screen. The definition is settled here (any day with at least one meal) but the streak has no scope feature of its own. It belongs to feature 9.
-- [ ] Spec 0001 records the test runner as Jest with the `jest-expo` preset, while `test-preferences.json` records Vitest. The parity test in build step 2 needs one of the two corrected first.
+- [ ] Spec 0001 records the test runner as Jest with the `jest-expo` preset, while `test-preferences.json` records Vitest. Vitest is what actually runs, and the suite is large now, so it is spec 0001 that is wrong. Still worth correcting there; it was left alone on 10 August because that amendment pass was scoped to identity only.
+- [ ] Add a guard that fails the build if `auth.uid()` ever appears in a generated policy (added 10 August 2026). This is the trap named in the security model and in Consequences: it fails silently rather than loudly, which is the worst kind of security bug, and the generator in `schema/to-postgres.ts` is a single, pure place to assert it. Spec 0004 carries the same item; whichever is built first should close both.
+- [ ] Decide whether `user_id` deserves a format check now that it has no foreign key (added 10 August 2026). The device already validates the shape before it names a file (`/^user_[A-Za-z0-9]{20,32}$/`), and Postgres does not. A check constraint would be cheap, and it would also catch the day a stray empty string is written.
 - [ ] Feature 6 owns the calorie formula. This spec reserves `daily_targets.formula_version` for it but does not choose the formula.
 - [ ] Photo upload to Supabase Storage is designed here as columns only. The upload path, the storage bucket policy, and what happens to a photo when its meal is deleted belong to feature 7 or 8.
 - [ ] The retention sweep has no home yet. It is a scheduled job, most naturally `pg_cron` in Supabase, and needs deciding when the backend is stood up in feature 5.
