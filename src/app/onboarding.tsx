@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { router } from 'expo-router';
 
 import { useAccount, useOnboardingHandover } from '@/account/session';
 import type { CompleteAnswers } from '@/data/local/onboarding';
@@ -83,22 +84,47 @@ const OnboardingFlowScreen = ({
   readonly db: Parameters<typeof useOnboarding>[0];
   readonly userId: string;
 }) => {
+  const account = useAccount();
   const { phase, answer, goBack, finish, dismissError } = useOnboarding(db, userId);
   const { onboardingFinished } = useOnboardingHandover();
 
-  // Leaving setup is a handover rather than a navigation: while the gate says
-  // onboarding, this is the only screen mounted, so there is nothing to
-  // navigate to until the gate is told the answer it routed on has changed.
-  // It runs only once the profile, the weigh in, and the target are all
-  // written, so Today has a real day to show the moment it mounts.
+  /**
+   * Leaving setup takes two steps, and it needs both.
+   *
+   * The gate mounts one screen at a time, so while it says onboarding there is
+   * no Today to navigate to: step one tells it the answer it routed on has
+   * changed. But changing what the gate *declares* does not move the route
+   * that is already showing, so on its own step one leaves the finished setup
+   * screen sitting there for ever. Step two is the navigation, and it waits
+   * for the gate to have actually declared the tabs rather than firing in the
+   * same tick, when there would still be nothing to go to.
+   */
   useEffect(() => {
     if (phase.kind === 'done') onboardingFinished();
   }, [phase, onboardingFinished]);
 
-  if (phase.kind === 'loading' || phase.kind === 'done') {
+  const handedOver = account.kind === 'ready' && account.destination.kind === 'today';
+
+  useEffect(() => {
+    if (handedOver) router.replace('/');
+  }, [handedOver]);
+
+  if (phase.kind === 'loading') {
     return (
       <Screen testID="onboarding-screen">
         <LoadingState message="Picking up where you left off" />
+      </Screen>
+    );
+  }
+
+  // Its own message rather than the resuming one. They are opposite ends of
+  // the flow, and showing "picking up where you left off" to somebody who has
+  // just finished is both wrong and, if it ever hangs again, hides which of
+  // the two states it hung in.
+  if (phase.kind === 'done') {
+    return (
+      <Screen testID="onboarding-screen">
+        <LoadingState message="Saving your daily target" />
       </Screen>
     );
   }
