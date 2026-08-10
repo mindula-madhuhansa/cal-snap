@@ -8,11 +8,10 @@ it rather than sitting in front of it. There is no ORM and no migration library.
 
 ## Key files
 
-| File              | Owns                                                                       |
-| ----------------- | -------------------------------------------------------------------------- |
-| `migrations.ts`   | The ordered migration list, `latestVersion`, and `pendingMigrations`       |
-| `client.ts`       | `DATABASE_NAME`, opening the database, applying migrations, `openDatabase` |
-| `use-database.ts` | The React hook that runs the open once at startup and reports its state    |
+| File            | Owns                                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| `migrations.ts` | The ordered migration list, `latestVersion`, and `pendingMigrations`                         |
+| `client.ts`     | `DATABASE_NAME`, `openDatabase`, and `asSqlDatabase`, the adapter onto the data layer's port |
 
 ## Conventions
 
@@ -24,8 +23,11 @@ it rather than sitting in front of it. There is no ORM and no migration library.
 - Opening the database returns a result value (`{ kind: 'ready' }` or `{ kind: 'failed', message }`)
   rather than throwing, because a full disk or a corrupt file is an expected outcome the user has
   to be told about honestly.
-- `useDatabase` is the only edge. Everything downstream works with the plain `SQLiteDatabase`
-  handle it hands back.
+- Opening the database is the only edge. Everything downstream works with the plain `SQLiteDatabase`
+  handle, or with the narrow `SqlDatabase` port that `asSqlDatabase` wraps it in. The old
+  `use-database.ts` hook was removed with feature 5: the database is no longer opened once at
+  startup under a fixed name, it is opened per account by `@/account/session`, which is what makes
+  one file per person possible. See [src/account/AGENTS.md](../account/AGENTS.md).
 
 ## Gotchas
 
@@ -37,7 +39,11 @@ it rather than sitting in front of it. There is no ORM and no migration library.
 - `openDatabase` is safe to call on every launch: an up to date database applies nothing.
 - Migration 1 stands the database up with an `app_meta` table. Migration 2 creates the six product
   tables from spec 0002, and its SQL is **generated** from the declarations in `src/data/schema/`,
-  not written here. `migrations.ts` imports it as `coreDataModelSql`.
+  not written here. `migrations.ts` imports it as `coreDataModelSql`. Migration 3 adds the
+  `sync_state` watermark table, generated the same way and guarded by its own fingerprint.
+- The database file is no longer a single fixed name. `DATABASE_NAME` remains for the scaffold
+  path, but a signed in person gets `calsnap-<clerk user id>.db`, opened by
+  `@/data/local/database-file.ts`. One file per account is the main isolation defence on the phone.
 - Because migration 2 is generated and has shipped, editing a table declaration it covers would
   retroactively change what a phone already ran. `CORE_DATA_MODEL_FINGERPRINT` in
   `src/data/local/migrations.ts` guards that, and `npm test` fails if it moves. The fix is always

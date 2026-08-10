@@ -8,13 +8,14 @@ import {
   oneOf,
   text,
   timestamptz,
-  uuid,
   type Table,
 } from '../types';
 
 /**
  * One row per user. No `deleted_at`: removing a profile means removing the
- * account, which the cascade from `auth.users` does.
+ * account, which the Clerk `user.deleted` webhook does (spec 0004; scope
+ * feature 10 builds it). There is no database cascade to lean on, because
+ * identity lives in Clerk and not in `auth.users`.
  *
  * Age is the number given at onboarding plus the date it was given, because
  * the design asks for age and not a birthday. The app never invents a birth
@@ -27,17 +28,9 @@ export const profiles: Table = {
   softDelete: false,
   primaryKey: ['user_id'],
   columns: [
-    {
-      name: 'user_id',
-      type: uuid,
-      nullable: false,
-      references: {
-        table: 'auth.users',
-        column: 'id',
-        onDelete: 'cascade',
-        postgresOnly: true,
-      },
-    },
+    // The primary key is the Clerk identifier itself, as text. See the shared
+    // `userId` column in `../types` for why it references nothing.
+    { name: 'user_id', type: text, nullable: false },
     { name: 'age_years', type: integer, nullable: false, checks: [between(13, 120)] },
     { name: 'age_recorded_on', type: date, nullable: false },
     { name: 'sex', type: text, nullable: false, checks: [oneOf('female', 'male')] },

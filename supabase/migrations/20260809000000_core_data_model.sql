@@ -11,7 +11,7 @@
 -- once per statement rather than once per row.
 
 create table public.profiles (
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id text not null,
   age_years integer not null check (age_years between 13 and 120),
   age_recorded_on date not null,
   sex text not null check (sex in ('female', 'male')),
@@ -38,12 +38,12 @@ alter table public.profiles force row level security;
 
 create policy profiles_own_rows on public.profiles
   for all to authenticated
-  using      (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
+  using      (user_id = (select auth.jwt() ->> 'sub'))
+  with check (user_id = (select auth.jwt() ->> 'sub'));
 
 create table public.meal_scans (
   id uuid not null,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id text not null,
   model text not null,
   prompt_version text not null,
   status text not null check (status in ('ok', 'low_confidence', 'unrecognised', 'failed')),
@@ -62,12 +62,12 @@ alter table public.meal_scans force row level security;
 
 create policy meal_scans_own_rows on public.meal_scans
   for all to authenticated
-  using      (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
+  using      (user_id = (select auth.jwt() ->> 'sub'))
+  with check (user_id = (select auth.jwt() ->> 'sub'));
 
 create table public.meals (
   id uuid not null,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id text not null,
   eaten_on date not null,
   eaten_at timestamptz not null,
   tz_at_save text not null,
@@ -92,13 +92,13 @@ alter table public.meals force row level security;
 
 create policy meals_own_rows on public.meals
   for all to authenticated
-  using      (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
+  using      (user_id = (select auth.jwt() ->> 'sub'))
+  with check (user_id = (select auth.jwt() ->> 'sub'));
 
 create table public.meal_items (
   id uuid not null,
   meal_id uuid not null references public.meals(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id text not null,
   name text not null,
   position integer not null,
   base_per numeric(6,1) not null default 100,
@@ -129,12 +129,12 @@ alter table public.meal_items force row level security;
 
 create policy meal_items_own_rows on public.meal_items
   for all to authenticated
-  using      (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
+  using      (user_id = (select auth.jwt() ->> 'sub'))
+  with check (user_id = (select auth.jwt() ->> 'sub'));
 
 create table public.daily_targets (
   id uuid not null,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id text not null,
   on_date date not null,
   calories integer not null check (calories > 0),
   protein_g numeric(6,1),
@@ -156,12 +156,12 @@ alter table public.daily_targets force row level security;
 
 create policy daily_targets_own_rows on public.daily_targets
   for all to authenticated
-  using      (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
+  using      (user_id = (select auth.jwt() ->> 'sub'))
+  with check (user_id = (select auth.jwt() ->> 'sub'));
 
 create table public.weight_entries (
   id uuid not null,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id text not null,
   on_date date not null,
   recorded_at timestamptz not null,
   weight_kg numeric(5,2) not null check (weight_kg between 20 and 500),
@@ -180,5 +180,5 @@ alter table public.weight_entries force row level security;
 
 create policy weight_entries_own_rows on public.weight_entries
   for all to authenticated
-  using      (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
+  using      (user_id = (select auth.jwt() ->> 'sub'))
+  with check (user_id = (select auth.jwt() ->> 'sub'));

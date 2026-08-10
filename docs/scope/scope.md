@@ -15,7 +15,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 2 | Coding standards & tooling | Foundation | done |
 | 3 | Data model | Foundation | in-progress |
 | 4 | Design system & UI foundation | Foundation | done |
-| 5 | Account & sign in | Release 1 | planned |
+| 5 | Account & sign in | Release 1 | in-progress |
 | 6 | Onboarding & daily calorie target | Release 1 | planned |
 | 7 | Snap a meal: AI nutrition scan | Release 1 | planned |
 | 8 | Review & save a meal | Release 1 | planned |
@@ -60,7 +60,7 @@ The core entities everything else reads and writes: a user, their profile and go
    - [x] Local tables and the data access layer over them, paginated and tombstone aware (AC-1, AC-4, AC-5, AC-7, AC-8, AC-9, AC-15, AC-16)
    - [x] The pure calculations: portion rescaling, the local day resolver, the meal type guess, unit conversion (AC-3, AC-6, AC-12)
    - [x] Per user database file lifecycle, opened on sign in and removed on sign out (AC-11)
-   - [ ] The cloud half: Postgres migration with row level security, sync, account deletion, retention sweep (AC-2, AC-5, AC-10, AC-14, AC-17) — the Postgres migration is applied and row level security is live and confirmed on all six tables; sync, account deletion, and the retention sweep wait for feature 5
+   - [ ] The cloud half: Postgres migration with row level security, sync, account deletion, retention sweep (AC-2, AC-5, AC-10, AC-14, AC-17) — the Postgres migration is applied and row level security is live and confirmed on all six tables, and **sync is built** (feature 5 brought `src/data/remote/` and its three triggers), though not yet run on a phone. Two remain: account deletion, which lost its `auth.users` cascade to the Clerk decision and now needs a `user.deleted` webhook (feature 10), and the retention sweep, which still has no scheduler
 - [ ] Verify it: `/check verify data model`
 - [x] Test it: `/test data model` — 238 Vitest tests across 16 files, each pinned criterion tagged `covers: AC-N`. Replaced the earlier `check:schema` and `check:data` scripts, so `npm test` is now the single gate in CI.
 Spec [0002](../specs/0002-data-model/index.md) · code in `src/data/` (`schema/`, `calculations/`, `ids/`, `local/`), `src/db/migrations.ts`, `supabase/migrations/`, tests beside the source plus `test/support/`
@@ -81,10 +81,21 @@ Spec [0003](../specs/0003-design-system-ui-foundation/index.md) · code in `src/
 
 The thinnest version you would genuinely ship: you set up once, snap meals, and see how much of your day is left. No exercise, no history, no chat. Someone could use only this and get real value.
 
-### 5. Account & sign in · GA
+### 5. Account & sign in · in-progress · GA
 Create an account, sign in, stay signed in, and have your data belong to you so it survives a new phone. This is also the first path that runs phone to backend to database end to end, so it proves the stack is truly connected.
 **Done when:** a new person can create an account and sign in, the session survives closing the app, signing in on a second device shows the same data, and failure states (wrong details, no network) say something useful.
-- [ ] Build it: `/develop account & sign in`
+- [x] Design it (spec): `/architect account & sign in` — decided Clerk for identity rather than Supabase Auth, which reverses spec 0001's Auth row and turns every `user_id` into text. A cross check on a second model found nine gaps, all closed before acceptance.
+- [x] Build it: `/develop account & sign in`
+   - [x] The door works: the schema change to text identifiers with the new policies, Clerk wired into the splash gate, the combined sign in screen, session routing, and sign out in Settings (AC-1, AC-2, AC-4..AC-8, AC-11, AC-14, AC-16) — landed and confirmed by hand on a development build on 9 August 2026: sign up by emailed code, the session surviving a force quit, the written failure messages, and sign out. The gate is green too (336 tests, lint and typecheck clean).
+     **AC-3 (native Google and Apple) was dropped on 9 August 2026**, on your call, and spec 0004 is amended to match. Email is the only sign in method.
+     The live Postgres now holds the identity change (all six tables on `text` with the `auth.jwt() ->> 'sub'` policies, confirmed), and Clerk's password attribute is optional, so sign up can complete. One thing is still owed and it belongs to the next slice rather than this one: Clerk has to be registered with Supabase as a third party auth provider, with `role: authenticated` on the session token. Without it the startup profile pull just fails to `stale` and the app carries on offline, so the door works either way; sync is where it becomes load bearing.
+   - [x] The data follows you: the Supabase client on Clerk's token, `runSync` with its three triggers, the restoring screen on a fresh device, the syncing marker, and the draining sign out (AC-9, AC-10, AC-11, AC-11b, AC-15) — built on 10 August 2026 and green on the gate (372 tests, lint, format and typecheck clean), but **not yet confirmed on a phone**. Two things are owed before it can be: Clerk still has to be registered with Supabase as a third party auth provider with `role: authenticated`, without which every sync request is refused; and spec 0002's two server side rules (Postgres stamping `updated_at` on receipt, and a tombstone the server keeps) have no trigger behind them, so the pushing device currently wins a conflict. That second one changes the generated Postgres migration, which has already been applied, so it is a decision rather than a fix: `/architect account & sync arbitration`.
+   - [x] It holds up: every failure message written out, a session ending mid use handled, the accessibility sweep, and specs 0001 and 0002 amended to match (AC-7, AC-12, AC-13, AC-16) — the code half landed on 10 August 2026 and is green on the gate (383 tests, lint, format and typecheck clean): a session ending mid use now finishes the sync in flight, keeps the local file, and returns you to sign in with the reason written out, and the sweep added an announced `Notice` so every failure sentence is spoken and not just drawn. The spec amendments landed on 10 August 2026 (`/architect`): specs 0001 and 0002 now record Clerk, `text` identifiers, and the `auth.jwt() ->> 'sub'` policies, checked against the live database rather than assumed. `/sync` then wrote `src/account/AGENTS.md` and reconciled the rest of the context files, which closes this milestone.
+- [ ] Verify it: `/check verify account & sign in`
+- [x] Test it: `/test account & sign in` — 22 tests over `supabase-transport.ts`, the one module in this feature still untested that could be tested without mocking (it imports Supabase as types only, so a fake client drives it). Suite now 400 passing plus 5 expected failures across 35 files. Those tests caught a real bug, **since fixed by `/debug` on 10 August 2026**: the lost connection rule matched `timeout` but never `timed out`, `ETIMEDOUT`, `ENOTFOUND`, or `EAI_AGAIN`, so DNS failures and timeouts read as `rejected` when `transport.ts` documents them as `offline`. It turned out to exist in two drifted copies, and the sign in one was worse: 7 of 10 real network failures produced "Something went wrong signing you in" instead of the connection sentence. Now one shared rule in `network-failure.ts`, written from real platform messages, with its own tests. Suite 431 passing. Still untested and blocked on architecture rather than effort: `sign-out.ts`, `draining.ts`, `use-sign-in-or-up.ts`, and the three providers, all of which import Expo or Clerk at module level and would need mocking the project deliberately avoids.
+- [x] Review it (fresh model): `/check review account & sign in` — reviewed on Sonnet 5 (author was Opus 5) over 81 files on 10 August 2026. Verdict **changes requested**: one major (a failed sign out is never shown to the person and the app quietly stays signed in) and four minor. Findings in [docs/reviews/2026-08-10-feat-account-and-sign-in.md](../reviews/2026-08-10-feat-account-and-sign-in.md).
+- [ ] Document it: `/document account & sign in`
+Spec [0004](../specs/0004-account-and-sign-in/index.md) · code in `src/data/schema/` (text identifiers, the jwt sub policies, `tables/sync-state.ts`), `src/data/local/` (`database-name.ts`, `pending.ts`, `database-file.ts`, migration 3), `src/data/remote/` (`push.ts`, `pull.ts`, `sync.ts`, the transport port and the codec), `src/account/` (the session gate, sign in, sync triggers, sign out and draining, `session-end.ts`, `sync-marker-label.ts`), `src/design-system/components/notice.tsx` + `captcha-mount.tsx`, `src/config/env.ts` + `app.config.ts` + `.env.example` (the three variables), `supabase/migrations/`, conventions in `src/account/AGENTS.md`
 
 ### 6. Onboarding & daily calorie target · needs a decision
 The first run: a few plain questions about height, weight, age, sex, activity level, and whether you want to lose, hold, or gain, and from those the app calculates the calories you should eat each day. It has to feel like four taps, not a medical form.
@@ -155,6 +166,7 @@ Out of scope for the current build pass, kept so the plan stays honest.
 - **Describe a meal in words**: log by text when a photo is not possible · needs a decision
 - **Saved and repeat meals**: log the breakfast you eat every day in one tap
 - **Works offline**: log and view without a connection, syncing later · needs a decision
+- **Account settings, including changing your password**: spec 0004 deliberately left this out of release 1, because an emailed code means nobody is ever locked out, but there is currently no way to change a password once set · from spec 0004
 - **More languages**: English only for now, with text kept out of the screens so this stays cheap
 
 ## Legend

@@ -1,4 +1,6 @@
-# Verify: data model · spec 0002 · updated 9 August 2026
+# Verify: data model · spec 0002 · updated 10 August 2026
+
+_Amended 10 August 2026 for the Clerk identity change (spec [0004](../0004-account-and-sign-in/index.md)). Three database steps changed: the policy check now expects `auth.jwt() ->> 'sub'`, two steps were added for the `text` column type and the removed foreign keys, and the account deletion step can no longer pass at all. Every other step is untouched._
 
 _Steps derived from spec 0002 acceptance criteria and from every row of its Value sourcing table. `/check verify` runs these; `/test` locks the durable ones._
 
@@ -26,13 +28,15 @@ confirmed on 9 August 2026 by querying the live database.
 
 - [x] Apply `supabase/migrations/20260809000000_core_data_model.sql` to the Cal Snap project, then confirm all six tables exist → AC-1 · six tables, 87 columns, matching the parity check
 - [x] `select relname, relrowsecurity, relforcerowsecurity from pg_class where relname in (...)` → row level security is both **enabled** and **forced** on all six → AC-2 · true on all six
-- [x] `select tablename, policyname, qual from pg_policies where schemaname = 'public'` → one `<t>_own_rows` policy per table, each testing `user_id = (select auth.uid())` → AC-2 · six policies, `using` and `with check` both correct, role `authenticated`
+- [x] `select tablename, policyname, qual from pg_policies where schemaname = 'public'` → one `<t>_own_rows` policy per table, each testing `user_id = (select auth.jwt() ->> 'sub')` → AC-2 · six policies, `using` and `with check` both correct, role `authenticated`. Re confirmed against the live project on 10 August 2026 after the identity change _(amended: this step expected `auth.uid()`, which spec 0004 replaced. Anyone rerunning it against the old expectation would read a real pass as a failure)_
+- [x] `select attname, format_type(...) from pg_attribute` for `user_id` on all six tables → `text`, not `uuid` → AC-2 · confirmed live on 10 August 2026 (added with the identity change)
+- [x] `select conname, pg_get_constraintdef(oid) from pg_constraint where contype = 'f'` → only `meal_items.meal_id` and `meals.scan_id` remain; no `auth.users` reference survives anywhere → AC-2, AC-10 · confirmed live on 10 August 2026 (added with the identity change)
 - [ ] Sign in as user A, `select * from meals where user_id = '<user B>'` → **zero rows**, not an error → AC-2 · needs a real session, so it lands with feature 5
 - [ ] Sign in as user A, try `insert into meals (...) values (..., '<user B>', ...)` → refused by the `with check` clause → AC-2
 - [x] Confirm an index exists on `user_id` for every table, and on every foreign key column (`meal_items.meal_id`, `meals.scan_id`) → AC-2 · all eight foreign key columns indexed; Supabase's performance advisors report no missing index
 - [x] Compare the **live** `information_schema.columns` against the schema declarations, column by column → AC-1 · all 87 columns match on name, order, type, nullability, and default, and `is_dirty` / `synced_at` did not leak into Postgres
 - [x] Count live `CHECK` constraints per table → AC-1 · 9, 2, 2, 12, 2, 2, exactly what the declarations produce
-- [ ] Delete a user from `auth.users` → every row for that user is gone from all six tables, tombstones included; then confirm the storage prefix `<user_id>/` is also gone → AC-10
+- [ ] Delete a person in the Clerk dashboard → every row for that `sub` is gone from all six tables, tombstones included, and the storage prefix `<user_id>/` is gone with them → AC-10 · **cannot pass today, and that is the finding**: this step read "delete a user from `auth.users`", and spec 0004 removed that cascade without replacing it. Nothing deletes anything by itself until scope feature 10 builds the `user.deleted` webhook. Run it then, and run it twice to prove the function is idempotent _(amended 10 August 2026)_
 - [ ] Insert a `meals` row with an `id` the device chose → Postgres accepts it unchanged, and no extension or default renumbers it → AC-4
 
 ## On the phone
@@ -75,7 +79,7 @@ These are the edges that break quietly if a value is sourced from the wrong plac
 ## Acceptance-criteria coverage
 
 - AC-1 · covered by `npm test` (parity, generated DDL executed, fingerprint) plus the live Postgres comparison; the fresh install step is still owed
-- AC-2 · **structurally covered** · row level security is enabled, forced, and correctly policied on the live database, and Supabase's security advisors are clean. The behavioural half (user A sees zero of user B's rows) needs a signed in session, so it is owed to feature 5
+- AC-2 · **structurally covered** · row level security is enabled, forced, and correctly policied on the live database, re confirmed on 10 August 2026 after the identity change, and Supabase's security advisors are clean. The behavioural half (user A sees zero of user B's rows) needs a signed in session, so it is owed to feature 5, and it now also needs Clerk registered with Supabase as a third party auth provider with `role: authenticated`. Until that is done every request is unauthenticated and every policy denies, which looks like a pass for entirely the wrong reason
 - AC-3 · covered by `npm test` (zone resolution, meal type boundaries, `eaten_on` stored at save); the fly the phone step is still owed
 - AC-4 · covered by `npm test` (version and variant bits, time ordering, no collisions over 500 ids); the Postgres accepts-device-id step is still owed
 - AC-5 · covered by `npm test` for the local half (tombstone set, meal and items both, no revival, dropped from totals); the two device half is owed to feature 5
@@ -83,7 +87,7 @@ These are the edges that break quietly if a value is sourced from the wrong plac
 - AC-7 · covered by `npm test` (totals summed at read time, no stored total column, deleted rows excluded)
 - AC-8 · covered by `npm test` (source transitions and `edited_fields`)
 - AC-9 · covered by `npm test` (written once, never recomputed, backdated weigh in ignored, identifier derived); the two offline devices step is owed to feature 5
-- AC-10 · **not yet covered** · needs the applied migration plus the storage delete edge function
+- AC-10 · **not yet covered, and further from covered than it was** · the `auth.users` cascade that used to do most of this for free is gone (spec 0004). It now needs an idempotent edge function behind Clerk's `user.deleted` webhook that deletes every row for that `sub` **and** removes the storage prefix. Scope feature 10 owns it, and until it lands the app cannot honour a deletion request
 - AC-11 · the query scoping half is covered by `npm test` (no read, delete, search, or streak crosses users); the per user file open and remove half needs a device and is still owed
 - AC-12 · covered by `npm test` (conversion is display only, stored kilograms untouched)
 - AC-13 · covered by `npm test` (every decimal maps to REAL, one decimal rounding holds through the values binary floating point gets wrong, day totals agree)

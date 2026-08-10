@@ -12,9 +12,11 @@ any screen renders.
 | File                  | Owns                                                                                                                        |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `_layout.tsx`         | Startup gating, the splash screen, providers, and the root stack                                                            |
+| `sign-in.tsx`         | The combined door: one email field, then a password or an emailed code                                                      |
+| `onboarding.tsx`      | The onboarding destination. A placeholder until scope feature 6 builds it                                                   |
 | `(tabs)/_layout.tsx`  | The tab bar and its theming                                                                                                 |
 | `(tabs)/index.tsx`    | The Today tab, built from the design system with labelled sample data; the real one, reading a real day, is scope feature 9 |
-| `(tabs)/settings.tsx` | The Settings tab (scaffold placeholder)                                                                                     |
+| `(tabs)/settings.tsx` | The Settings tab: the signed in email, and signing out                                                                      |
 
 ## Conventions
 
@@ -42,8 +44,15 @@ any screen renders.
 - `_layout.tsx` imports `@/config/env` for its side effect. That import is what validates the
   environment at startup and throws loudly on a bad value, so do not remove it as unused.
 - The splash screen is held manually (`preventAutoHideAsync`, then `hideAsync` once fonts and the
-  database have both settled). Any new startup gate has to join that `settled` check, or the splash
+  account have both settled). Any new startup gate has to join that `settled` check, or the splash
   will hide too early.
+- **The account half of that gate is a sequence, not a race**: Clerk answers, then the per account
+  database file opens, then the `profiles` row is pulled, then routing happens once. Only fonts may
+  load alongside. `AccountProvider` owns it, and implementing it as parallel flags fails silently by
+  opening no file or the wrong one. See [src/account/AGENTS.md](../account/AGENTS.md).
+- While signed out, the sign in screen is the only screen **mounted**, not merely the target of a
+  redirect. That is what makes a deep link and a back gesture unable to reach a diary, so keep the
+  guard on what the stack renders rather than turning it into a redirect.
 - Safe area insets are applied by the `Screen` component (`@/design-system/components/screen`),
   not per screen with a local `useSafeAreaInsets` call. `Screen` applies the top inset as content
   padding rather than a margin, so content still scrolls under the status bar the way the design

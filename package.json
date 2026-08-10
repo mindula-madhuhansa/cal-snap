@@ -8,8 +8,8 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
@@ -20,9 +20,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@clerk/expo": "^4.2.3",
     "@expo-google-fonts/cormorant-garamond": "^0.4.1",
     "@expo-google-fonts/lora": "^0.4.2",
     "@expo/vector-icons": "^15.0.2",
+    "@supabase/supabase-js": "^2.112.2",
     "expo": "~56.0.19",
     "expo-constants": "~56.0.23",
     "expo-crypto": "~56.0.4",
@@ -31,6 +33,7 @@
     "expo-haptics": "~56.0.3",
     "expo-linking": "~56.0.16",
     "expo-router": "~56.2.18",
+    "expo-secure-store": "~56.0.4",
     "expo-splash-screen": "~56.0.14",
     "expo-sqlite": "~56.0.5",
     "expo-status-bar": "~56.0.4",

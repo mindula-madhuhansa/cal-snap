@@ -6,10 +6,11 @@ An AI calorie counter for everyday people losing weight: snap a meal, get its nu
 
 - **Language / Runtime**: TypeScript strict, Node 22, React 19.2 on React Native 0.85
 - **Framework**: Expo SDK 56 (New Architecture), with Expo Router for file based routing
-- **Key dependencies**: `expo-sqlite` (the local first store), `expo-crypto` (device randomness for identifiers), `zod` (configuration validation), `@expo-google-fonts` (Cormorant Garamond, Lora), `react-native-reanimated`, `@expo/vector-icons` (the Feather set, behind the design system's `Icon`), `expo-haptics` (the shared feedback helper)
+- **Key dependencies**: `expo-sqlite` (the local first store), `@clerk/expo` (accounts and sessions) with `expo-secure-store`, `@supabase/supabase-js` (the sync client, always on a Clerk token), `expo-crypto` (device randomness for identifiers), `zod` (configuration validation), `@expo-google-fonts` (Cormorant Garamond, Lora), `react-native-reanimated`, `@expo/vector-icons` (the Feather set, behind the design system's `Icon`), `expo-haptics` (the shared feedback helper)
 - **Styling**: a typed theme module plus React Native `StyleSheet`. No styling library, one light theme, no web target
 - **Package manager**: npm
-- **Partly wired**: Supabase Postgres is live (project `Cal Snap`), with the spec 0002 schema applied and row level security on every table. Supabase auth, edge functions, and sync arrive with scope feature 5. EAS development builds are wired (`eas.json`, `eas-cli`, the project linked in `app.config.ts`'s `extra.eas.projectId`); production builds and store submission are not yet.
+- **Auth**: Clerk, not Supabase Auth. Spec 0004 reversed spec 0001's original row, so every `user_id` is `text` holding the Clerk identifier and every Postgres policy reads `auth.jwt() ->> 'sub'`. `auth.uid()` returns null here and would silently match nothing; never write it. Conventions live in [src/account/AGENTS.md](src/account/AGENTS.md).
+- **Partly wired**: Supabase Postgres is live (project `Cal Snap`), with the spec 0002 schema applied and row level security on every table. Sign in and sync are built but not yet confirmed on a phone: Clerk still has to be registered with Supabase as a third party auth provider with `role: authenticated`, and until it is, every Supabase request is refused. Edge functions (the vision scan, and the account deletion webhook) arrive with scope features 7 and 10. EAS development builds are wired (`eas.json`, `eas-cli`, the project linked in `app.config.ts`'s `extra.eas.projectId`); production builds and store submission are not yet.
 - **Decided but not wired yet**: Claude Sonnet 5 for the vision scan behind an edge function
 
 Mirrors spec [0001](docs/specs/0001-stack-architecture/index.md), which is the source of truth for this section.
@@ -22,17 +23,20 @@ Mirrors spec [0001](docs/specs/0001-stack-architecture/index.md), which is the s
 
 Node 22 (see `.nvmrc`), npm, run from the repo root.
 
-| Command             | What it does                                  |
-| ------------------- | --------------------------------------------- |
-| `npm install`       | Install dependencies                          |
-| `npm start`         | Start the Expo dev server                     |
-| `npm run ios`       | Start it and open an iOS simulator            |
-| `npm run android`   | Start it and open an Android emulator         |
-| `npm run lint`      | ESLint over the repo (`eslint .`)             |
-| `npm run format`    | Check formatting (`format:write` to fix it)   |
-| `npm run typecheck` | `tsc --noEmit` across three tsconfig projects |
-| `npm test`          | Vitest (`test:watch` to watch)                |
-| `npx expo-doctor`   | Check dependencies match the SDK              |
+| Command             | What it does                                   |
+| ------------------- | ---------------------------------------------- |
+| `npm install`       | Install dependencies                           |
+| `npm start`         | Start the Expo dev server                      |
+| `npm run ios`       | `expo run:ios`, a native development build     |
+| `npm run android`   | `expo run:android`, a native development build |
+| `npm run lint`      | ESLint over the repo (`eslint .`)              |
+| `npm run format`    | Check formatting (`format:write` to fix it)    |
+| `npm run typecheck` | `tsc --noEmit` across three tsconfig projects  |
+| `npm test`          | Vitest (`test:watch` to watch)                 |
+| `npx expo-doctor`   | Check dependencies match the SDK               |
+
+Both switched from `expo start --ios`/`--android` when Clerk arrived: `@clerk/expo` is native code,
+so this app can no longer run in Expo Go and needs a development build.
 
 `npm run gen:supabase-migration` rewrites `supabase/migrations/` from the schema
 declarations. It generates, it does not check, so it is not part of the gate.
@@ -94,11 +98,13 @@ Installed in `.agents/skills/` (mirrored to `.claude/skills/`), pinned in `skill
 - [supabase](.agents/skills/supabase/): `supabase/agent-skills`, Supabase database, auth, edge functions, storage, and the client libraries.
 - [supabase-postgres-best-practices](.agents/skills/supabase-postgres-best-practices/): `supabase/agent-skills`, Postgres schema, migrations, row level security, and query performance.
 - `expo-react-native-performance` (installed at user level, in the agent's own skills directory, not in this repo): Expo and React Native performance conventions.
+- The six Clerk skills (`clerk-expo`, `clerk-custom-ui`, `clerk-setup`, `clerk-webhooks`, `clerk-cli`, `clerk-backend-api`) are installed too. They are area specific, so they are listed with their conventions in [src/account/AGENTS.md](src/account/AGENTS.md) rather than here.
 
 MCP servers: Supabase (connected; the live project is `Cal Snap`).
 
 ## Context files
 
+- [src/account/AGENTS.md](src/account/AGENTS.md): Clerk, the session state machine, sync triggers, signing out, and the dashboard settings the code depends on.
 - [src/app/AGENTS.md](src/app/AGENTS.md): the routes, the startup gates, and Expo Router's default export exception.
 - [src/data/AGENTS.md](src/data/AGENTS.md): the one schema declaration, the two generators, the pure calculations, and the data access layer.
 - [src/db/AGENTS.md](src/db/AGENTS.md): the local SQLite store and the migration rules.

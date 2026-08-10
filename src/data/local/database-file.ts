@@ -3,79 +3,65 @@ import { deleteDatabaseAsync } from 'expo-sqlite';
 import { openDatabase, type OpenDatabaseResult } from '@/db/client';
 
 import type { SqlDatabase } from './database';
+import { databaseNameForUser, isClerkUserId } from './database-name';
+import { countPendingMeals, countPendingPushes } from './pending';
+
+export { CLERK_USER_ID_SHAPE, databaseNameForUser, isClerkUserId } from './database-name';
 
 /**
  * On the phone, isolation between accounts is physical rather than filtered:
  * each account gets its own SQLite file, opened on sign in and removed on
  * sign out. Two accounts cannot share a file, so a missed `WHERE user_id`
- * cannot leak between them (AC-11).
+ * cannot leak between them (spec 0002 AC-11; spec 0004 AC-8).
  *
- * Sign in and sign out themselves belong to scope feature 5. This module is
- * the half the data model owes that feature.
+ * This module is one of the two deliberate Expo edges in `src/data/`. The
+ * counts it leans on are plain queries and live in `./pending` so the tests
+ * can drive them without a phone.
  */
-
-/** The tables that carry unpushed work. `profiles` included: it syncs too. */
-const SYNCED_TABLES: readonly string[] = [
-  'profiles',
-  'meal_scans',
-  'meals',
-  'meal_items',
-  'daily_targets',
-  'weight_entries',
-];
-
-/**
- * One file per account. The user's identifier is a UUID the server issued, so
- * it is safe in a filename, but it is checked anyway rather than trusted.
- */
-export const databaseNameForUser = (userId: string): string => `calsnap-${userId}.db`;
-
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const openUserDatabase = async (userId: string): Promise<OpenDatabaseResult> => {
-  if (!UUID_SHAPE.test(userId)) {
+  if (!isClerkUserId(userId)) {
     return { kind: 'failed', message: 'That account identifier is not one this app issued.' };
   }
   return openDatabase(databaseNameForUser(userId));
 };
 
-/** How many rows are still waiting to reach the server. */
-export const countPendingPushes = async (db: SqlDatabase): Promise<number> => {
-  const counts = await Promise.all(
-    SYNCED_TABLES.map(async (table) => {
-      const row = await db.getFirstAsync<{ pending: number }>(
-        `SELECT COUNT(*) AS pending FROM ${table} WHERE is_dirty = 1`,
-        [],
-      );
-      return row?.pending ?? 0;
-    }),
-  );
-  return counts.reduce((total, count) => total + count, 0);
-};
-
 export type SignOutResult =
   /** Everything was pushed, so the file is gone and no diary is left behind. */
   | { readonly kind: 'removed' }
-  /** Work is still unpushed, so the file stays and the next sign in retries. */
-  | { readonly kind: 'kept'; readonly pending: number }
+  /**
+   * Work is still unpushed. The person is told how many *meals* are waiting
+   * and chooses to wait or to sign out anyway.
+   */
+  | { readonly kind: 'pending'; readonly meals: number }
   | { readonly kind: 'failed'; readonly message: string };
 
 /**
- * Signing out removes the local diary, once every dirty row has been pushed.
+ * Removes the local diary for an account, once every dirty row has landed.
  *
  * Nothing is kept for convenience. On a shared or family phone the
  * alternative is a full health record sitting on disk indefinitely after
- * someone signs out. If a push is still pending the file stays instead, and
- * the next sign in retries it, because losing unsynced meals would be worse
- * than holding them for a while.
+ * someone signs out.
+ *
+ * `force` is the "sign out anyway" path: it removes the file even with work
+ * unpushed. Slice 2 replaces that with the draining state (spec 0004, AC-11b),
+ * which keeps the rows and retries rather than losing them, so `force` is the
+ * honest short term behaviour and not the final one.
  */
-export const signOutAndRemoveDatabase = async (
+export const removeUserDatabase = async (
   userId: string,
   db: SqlDatabase,
   close: () => Promise<void>,
+  options: { readonly force?: boolean } = {},
 ): Promise<SignOutResult> => {
-  const pending = await countPendingPushes(db);
-  if (pending > 0) return { kind: 'kept', pending };
+  if (!isClerkUserId(userId)) {
+    return { kind: 'failed', message: 'That account identifier is not one this app issued.' };
+  }
+
+  if (options.force !== true) {
+    const pending = await countPendingPushes(db);
+    if (pending > 0) return { kind: 'pending', meals: await countPendingMeals(db) };
+  }
 
   try {
     await close();

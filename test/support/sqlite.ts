@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { createIdSource, type IdSource } from '../../src/data/ids/uuid';
 import type { SqlDatabase, SqlValue } from '../../src/data/local/database';
-import { coreDataModelSql } from '../../src/data/local/migrations';
+import { coreDataModelSql, syncStateSql } from '../../src/data/local/migrations';
 
 /**
  * Shared setup for the data access layer tests.
@@ -25,6 +25,7 @@ export const openTestDatabase = (): TestDatabase => {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON');
   raw.exec(coreDataModelSql);
+  raw.exec(syncStateSql);
 
   const db: SqlDatabase = {
     runAsync: async (sql: string, params: readonly SqlValue[]) => raw.prepare(sql).run(...params),
@@ -63,8 +64,13 @@ export const testIdSource = (): IdSource => {
   );
 };
 
-export const USER_A = '11111111-2222-4333-8444-555555555555';
-export const USER_B = '99999999-8888-4777-8666-555555555555';
+/**
+ * Clerk shaped identifiers, not UUIDs: spec 0004 moved identity to Clerk, so
+ * `user_id` is text holding a value like this one. The tests use the real
+ * shape so that anything assuming a UUID fails here rather than on a phone.
+ */
+export const USER_A = 'user_2aBcDeFgHiJkLmNoPqRsTuVwX';
+export const USER_B = 'user_2zYxWvUtSrQpOnMlKjIhGfEdC';
 
 /** A meal item with sensible numbers, so a test only states what it cares about. */
 export const anItem = (
