@@ -2,8 +2,9 @@
 
 ## Overview
 
-The Classical look, as typed values, and the seventeen components built from them (scope feature
-4, Design system & UI foundation, done). Every colour, space, radius, font, type step, motion
+The Classical look, as typed values, and the nineteen components built from them (scope feature
+4, Design system & UI foundation, done; `Notice` and `CaptchaMount` were added by feature 5).
+Every colour, space, radius, font, type step, motion
 duration, and shadow the app uses is defined once in `theme.ts`, ported from
 `docs/design/classical.css`, so no screen ever invents a number; every screen assembles from
 `components/` rather than from raw React Native primitives.
@@ -14,17 +15,17 @@ accessibility contract). `theme.ts` is the token source; `design.md` is the cont
 
 ## Key files
 
-| File                    | Owns                                                                                                                          |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `theme.ts`              | `colors`, `space`, `radii`, `fonts`, `type`, `motion`, `shadows`, `minTouchTarget`, `theme`                                   |
-| `use-app-fonts.ts`      | Loading the four Google font cuts, returning a loading, ready, or failed value                                                |
-| `scale-type-step.ts`    | `scaleTypeStep`, the one place the system font size setting is applied (capped at `type.fontScaleCap`)                        |
-| `min-touch-target.ts`   | `withMinTouchTarget`, the pure hit slop calculation behind the 44pt touch target floor                                        |
-| `intent-colors.ts`      | `intentColors`, resolving an intent (`over`/`notice`/`failure`) to its text/mark colour pair                                  |
-| `motion-duration.ts`    | `motionDuration`, collapsing a duration to `motion.duration.instant` when reduce motion is on                                 |
-| `use-reduced-motion.ts` | The hook every animated component reads; defaults to reduced until the OS answers                                             |
-| `haptics.ts`            | The one shared haptics helper (`selection`, `change`, `saved`); fire-and-forget, swallows failure                             |
-| `components/`           | The seventeen components plus the tab bar, one file each, decision logic split into a pure `.ts` file with its test beside it |
+| File                    | Owns                                                                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `theme.ts`              | `colors`, `space`, `radii`, `fonts`, `type`, `motion`, `shadows`, `minTouchTarget`, `theme`                                  |
+| `use-app-fonts.ts`      | Loading the four Google font cuts, returning a loading, ready, or failed value                                               |
+| `scale-type-step.ts`    | `scaleTypeStep`, the one place the system font size setting is applied (capped at `type.fontScaleCap`)                       |
+| `min-touch-target.ts`   | `withMinTouchTarget`, the pure hit slop calculation behind the 44pt touch target floor                                       |
+| `intent-colors.ts`      | `intentColors`, resolving an intent (`over`/`notice`/`failure`) to its text/mark colour pair                                 |
+| `motion-duration.ts`    | `motionDuration`, collapsing a duration to `motion.duration.instant` when reduce motion is on                                |
+| `use-reduced-motion.ts` | The hook every animated component reads; defaults to reduced until the OS answers                                            |
+| `haptics.ts`            | The one shared haptics helper (`selection`, `change`, `saved`); fire-and-forget, swallows failure                            |
+| `components/`           | The nineteen components plus the tab bar, one file each, decision logic split into a pure `.ts` file with its test beside it |
 
 ## Conventions
 
@@ -43,6 +44,10 @@ accessibility contract). `theme.ts` is the token source; `design.md` is the cont
   `light`.
 - Font loading is a side effect, so it lives in `use-app-fonts.ts` at the edge and returns a
   result value rather than throwing. Everything else reads family names from `theme.fonts`.
+- **A message that appears in response to a press goes in `Notice`, never a bare `AppText`.** It
+  carries `role="alert"` and a polite live region, which is what makes a screen reader announce it;
+  without that, someone presses a button, gets an error, and hears nothing at all. `ErrorState` is
+  the whole screen version, `Notice` the inline one beside a form still in use.
 
 ## Gotchas
 
@@ -60,6 +65,15 @@ accessibility contract). `theme.ts` is the token source; `design.md` is the cont
   needs both. Spread the whole step.
 - `minTouchTarget` is 44 points, the WCAG AA floor the root `AGENTS.md` makes the baseline. Any
   tappable thing measures at least this.
+- A `Notice`'s `children` sit **outside** its announced group on purpose. Anything inside an
+  `accessible` view is swallowed by it on iOS, so a button placed in there would be unreachable to
+  a screen reader. The same reasoning applies to any new grouped component.
+- `Tag` takes an optional `accessibilityLabel` because its visible label is set tight for the
+  design and can carry a separator that reads badly aloud (the sync marker's `·` is the live
+  example). Use it whenever the seen text is not a sentence.
+- `CaptchaMount` exists only because Clerk's bot protection needs a raw `View` with
+  `nativeID="clerk-captcha"`, which `eslint.config.js` forbids inside `src/app/**`. It draws
+  nothing. It lives here so the lint rule stays intact rather than being weakened.
 
 ## Agent skills
 

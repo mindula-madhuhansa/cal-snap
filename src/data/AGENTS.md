@@ -8,31 +8,42 @@ the Postgres statements, and the TypeScript types are all generated from that on
 the phone's database and Supabase can never drift apart.
 
 Everything here runs without a phone. Nothing in this folder imports a React Native or Expo module
-except `ids/device.ts` and `local/database-file.ts`, which are the two deliberate edges.
+except `ids/device.ts` and `local/database-file.ts`, which are the two deliberate edges. `remote/`
+holds sync as rules over a narrow port and knows nothing about Supabase; the adapter that does is
+`@/account/supabase-transport.ts`, which is what lets the push and pull rules be tested with no
+network and no client.
 
 ## Key files
 
-| File                     | Owns                                                                     |
-| ------------------------ | ------------------------------------------------------------------------ |
-| `schema/types.ts`        | The table description type, and the terse constructors table files use   |
-| `schema/tables/*.ts`     | One file per table, plain data, no database imports                      |
-| `schema/tables/all.ts`   | `releaseOneTables`, in dependency order                                  |
-| `schema/to-sqlite.ts`    | The SQLite generator, pure                                               |
-| `schema/to-postgres.ts`  | The Postgres generator, pure, including row level security               |
-| `schema/checks.ts`       | The one type mapping table, and how a check renders as SQL               |
-| `schema/resolve.ts`      | The lifecycle and device only columns each dialect gets                  |
-| `schema/parity.ts`       | Reads both generated schemas back and compares them (AC-1)               |
-| `calculations/*.ts`      | Portion rescaling, the local day, the meal type guess, units, rounding   |
-| `ids/uuid.ts`            | UUID version 7 and version 5, pure; `ids/sha1.ts` backs version 5        |
-| `ids/device.ts`          | The device's real randomness. The only Expo import in `ids/`             |
-| `local/database.ts`      | The narrow `SqlDatabase` port the whole data layer talks to              |
-| `local/migrations.ts`    | SQLite migration 2's SQL, generated, plus its fingerprint guard          |
-| `local/meals.ts`         | `saveMeal`, `listMealsForDay`, `deleteMeal`, `totalsForDay`              |
-| `local/daily-targets.ts` | `getOrCreateDailyTarget`, which takes the calorie formula as an argument |
-| `local/past-items.ts`    | `searchPastItems`, the add by hand search over your own history          |
-| `local/streak.ts`        | `computeStreak`                                                          |
-| `local/database-file.ts` | The per user database file, opened on sign in and removed on sign out    |
-| `local/rows.ts`          | The database row shapes, and the mapping into the app's shapes           |
+| File                     | Owns                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| `schema/types.ts`        | The table description type, and the terse constructors table files use        |
+| `schema/tables/*.ts`     | One file per table, plain data, no database imports                           |
+| `schema/tables/all.ts`   | `releaseOneTables`, in dependency order                                       |
+| `schema/to-sqlite.ts`    | The SQLite generator, pure                                                    |
+| `schema/to-postgres.ts`  | The Postgres generator, pure, including row level security                    |
+| `schema/checks.ts`       | The one type mapping table, and how a check renders as SQL                    |
+| `schema/resolve.ts`      | The lifecycle and device only columns each dialect gets                       |
+| `schema/parity.ts`       | Reads both generated schemas back and compares them (AC-1)                    |
+| `calculations/*.ts`      | Portion rescaling, the local day, the meal type guess, units, rounding        |
+| `ids/uuid.ts`            | UUID version 7 and version 5, pure; `ids/sha1.ts` backs version 5             |
+| `ids/device.ts`          | The device's real randomness. The only Expo import in `ids/`                  |
+| `local/database.ts`      | The narrow `SqlDatabase` port the whole data layer talks to                   |
+| `local/migrations.ts`    | SQLite migration 2's SQL, generated, plus its fingerprint guard               |
+| `local/meals.ts`         | `saveMeal`, `listMealsForDay`, `deleteMeal`, `totalsForDay`                   |
+| `local/daily-targets.ts` | `getOrCreateDailyTarget`, which takes the calorie formula as an argument      |
+| `local/past-items.ts`    | `searchPastItems`, the add by hand search over your own history               |
+| `local/streak.ts`        | `computeStreak`                                                               |
+| `local/database-file.ts` | The per user database file, opened on sign in and removed on sign out         |
+| `local/database-name.ts` | Naming and validating that file from a Clerk identifier. Pure                 |
+| `local/pending.ts`       | `countPendingPushes` (the gate) and `countPendingMeals` (what a person reads) |
+| `local/rows.ts`          | The database row shapes, and the mapping into the app's shapes                |
+| `remote/transport.ts`    | The narrow `SyncTransport` port, and `BEGINNING_OF_TIME`                      |
+| `remote/push.ts`         | Dirty rows up, upserted on the primary key so a replay is idempotent          |
+| `remote/pull.ts`         | Rows down by keyset from the watermark, with the sticky delete rule           |
+| `remote/sync.ts`         | `runSync`: push, then pull, with a reason. Safe to call repeatedly            |
+| `remote/codec.ts`        | Row shapes across the wire, and the device only columns kept off it           |
+| `remote/sync-state.ts`   | Reading and advancing the per table pull watermark                            |
 
 ## Commands
 
@@ -59,6 +70,9 @@ except `ids/device.ts` and `local/database-file.ts`, which are the two deliberat
   offset.
 - Every query is scoped by `user_id`, even though each account already has its own database file.
   The file split is the main defence and the filter is the second one.
+- `user_id` is `text` holding the **Clerk** identifier (`user_...`), not a `uuid`, and it has no
+  foreign key: the account lives at Clerk, so there is nothing in either database to reference.
+  Never derive or type one; it always comes from the session's `sub` claim.
 - Weight is kilograms and height is centimetres, everywhere. `calculations/units.ts` is display
   only and is never called on a write path.
 - Macros round to one decimal and calories to a whole number, on write, via
@@ -93,6 +107,15 @@ except `ids/device.ts` and `local/database-file.ts`, which are the two deliberat
   by `(created_at DESC, id DESC)`, as `searchPastItems` does.
 - SQLite carries `is_dirty` and `synced_at`; Postgres deliberately does not. The parity check
   asserts they are absent from Postgres rather than ignoring them.
+- **Never write `auth.uid()` in a policy.** Every Postgres policy reads
+  `(user_id = (select auth.jwt() ->> 'sub'))`, because identity comes from a Clerk token now.
+  `auth.uid()` still exists and still runs, it just returns null here, so a policy written from a
+  Supabase example silently matches **nothing** rather than failing. Nothing catches this yet;
+  spec 0002 carries a follow up to add a guard in `schema/to-postgres.ts`.
+- A table with no `sync_state` row pulls from `BEGINNING_OF_TIME`, not from now. That default is
+  the only reason a fresh phone receives an existing diary at all.
+- `runSync` with reason `sign-out` pushes and deliberately does **not** pull, because pulling a
+  diary the app is about to delete is work for nothing.
 - `supabase/migrations/` is generated. Do not hand edit it; run `npm run gen:supabase-migration`.
 - Test files and `test/support/` typecheck under `tsconfig.test.json`, not the app config, so Node
   globals stay out of app source.
@@ -111,5 +134,8 @@ MCP servers: Supabase (connected; the live project is `Cal Snap`).
 - [0002. Core data model](../../docs/specs/0002-data-model/index.md), the source of truth for every
   table, invariant, and acceptance criterion here. Its `verify.md` records what is proven and what
   is still owed.
+- [0004. Account and sign in](../../docs/specs/0004-account-and-sign-in/index.md), which amended
+  0002's identity model (`text` identifiers, `auth.jwt() ->> 'sub'` policies) and settled when
+  sync runs. Session conventions live in [src/account/AGENTS.md](../account/AGENTS.md).
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._
