@@ -57,7 +57,9 @@ Reasoning, the options weighed, and the derivations: see [rationale.md](rational
 
 **Data model sketch**
 
-No schema change. Spec 0002 already declared every table this feature touches, and all of them are inside frozen migration 2. Nothing new is added, so `CORE_DATA_MODEL_FINGERPRINT` is untouched and no SQLite or Postgres migration is written.
+No table change. Spec 0002 already declared every table this feature touches, and all of them are inside frozen migration 2. No table, column, index or constraint is added or altered, so `CORE_DATA_MODEL_FINGERPRINT` is untouched and no SQLite migration is written.
+
+**One Postgres migration is written, and it declares no table.** `supabase/migrations/20260811000000_scan_cap.sql` adds a single function, `claim_meal_scan`, because the atomic cap below cannot be expressed as a PostgREST call and has to live in the database. It is the only hand written file in that folder: the other three are generated from the table declarations in `src/data/schema/`, and a function has no declaration to generate it from. `npm run gen:supabase-migration` writes only its own three files, so this one sits beside them untouched. _Corrected on 11 August 2026, after the build: the original wording said no Postgres migration was written at all, which the code contradicted._
 
 | Table | Columns this feature uses | Written by |
 |---|---|---|
@@ -97,8 +99,12 @@ Backgrounding or navigating away does not leave `scanning`. The request runs to 
 Inside the function the row's own life is short and deliberate:
 
 ```
-one atomic statement: insert (status 'failed') only if this account's
-count for its local day is under 25
+take a per account transaction lock (this is what serialises concurrent
+requests from one account; the conditional insert alone does not)
+        │
+        ↓
+insert (status 'failed') only if this account's count for its local
+day is under 25, counting only non 'failed' rows
         │
    inserted? ──no──→ return over_daily_cap (no row, nothing spent)
         │ yes
@@ -109,7 +115,9 @@ count for its local day is under 25
    update the row to its real status, confidence, raw_response and cost_cents
 ```
 
-Inserting first, pessimistically, is what makes the cap atomic (AC-8) and what makes a crashed function safe: whatever goes wrong, the row it leaves behind is `failed`, and `failed` costs the person nothing. A retry carrying the same `scan_id` finds that row and, if it already holds a non `failed` status, returns it rather than calling Anthropic again (AC-18).
+Inserting first, pessimistically, is what makes a crashed function safe: whatever goes wrong, the row it leaves behind is `failed`, and `failed` costs the person nothing. A retry carrying the same `scan_id` finds that row and, if it already holds a non `failed` status, returns it rather than calling Anthropic again (AC-18).
+
+**What actually makes the cap atomic is the lock, not the single statement.** This spec originally said a conditional insert was enough, and it is not: `insert ... select ... where (count) < 25` is one statement but not a *serial* one. Under Postgres's default READ COMMITTED isolation, two concurrent transactions both take their snapshot before either commits, so both read a count of 24, both pass the condition, and both insert. The `pg_advisory_xact_lock` on the account, taken before the count, is what genuinely serialises them, and it is held only to the end of that transaction. Locking on the account rather than the table means two different people scanning at the same moment never wait on each other. _Corrected on 11 August 2026, after the build._
 
 **API surface**
 
@@ -197,7 +205,7 @@ No new app side environment variable. The function's URL derives from the existi
 
 ## Build plan
 
-Sliced by the project's **Skateboard** approach: the first slice is the thinnest thing a real person could actually use, and each later slice thickens it without rewriting what came before. No slice touches the schema, so no migration appears anywhere in this plan.
+Sliced by the project's **Skateboard** approach: the first slice is the thinnest thing a real person could actually use, and each later slice thickens it without rewriting what came before. No slice touches a table, so no SQLite migration appears anywhere in this plan; slice 2 carries the one Postgres migration, which declares a function and no table.
 
 1. **A photo becomes numbers.** Deploy the `scan-meal` edge function: pinned `claude-sonnet-5`, the system prompt and its `prompt_version` constant, the JSON schema behind `output_config.format`, `thinking` disabled at `effort: "low"`, zod validation of the reply, `cost_cents` from the reported token usage, and the scan row written through a user scoped Supabase client. On the phone: the `ScanTransport` port with its Supabase adapter, the camera tab and capture screen on `expo-camera`, `expo-image-manipulator` at 1024 px and quality 0.7, the local mirror written through `src/data/local/`, and a plain result list built from the existing design system. Satisfies **AC-1**, **AC-4**, **AC-9**, **AC-10**, **AC-11**, **AC-15**, **AC-16**, **AC-17**.
 2. **One photo cannot cost twice.** The atomic insert that is both the cap gate and the pessimistic `failed` row, the update to the real status on success, and idempotency on `scan_id` so a repeated request returns the recorded result instead of calling Anthropic again. Built early and deliberately, because both bugs it prevents cost real money and neither is visible in normal use. Satisfies **AC-8**, **AC-18**, and half of **AC-7**.
@@ -209,7 +217,7 @@ Sliced by the project's **Skateboard** approach: the first slice is the thinnest
 
 **Positive**
 
-- Zero schema change. Spec 0002 designed `meal_scans` for exactly this, so the most expensive part of the feature was paid for a week ago and migration 2 stays frozen.
+- Zero table change. Spec 0002 designed `meal_scans` for exactly this, so the most expensive part of the feature was paid for a week ago and migration 2 stays frozen. The one migration this feature adds declares a function, not a table.
 - Structured outputs delete a whole class of work. There is no JSON repair, no retry on a parse failure, no partial result to reason about.
 - Cost is measured rather than assumed, from day one, on a table that already answers usage by date range. When billing arrives, a scan limit can be priced from real numbers.
 - The narrow `ScanTransport` port keeps the scan rules testable with no network, no client and no camera, exactly as `remote/transport.ts` did for sync.
@@ -243,4 +251,6 @@ Sliced by the project's **Skateboard** approach: the first slice is the thinnest
 - [ ] Nothing checks that the model and rates pinned in the function still exist and still cost what the constant says. `SONNET_5_RATES` carries an effective date; the introductory pricing it is written against runs to 31 August 2026, after which the input and output rates rise. Put a reminder somewhere a human will see it.
 - [ ] Photo sync is designed for but not built. `profiles.photo_sync_enabled` exists and defaults to false, and `meals.photo_remote_path` and `photo_synced_at` stay null. Enrolling opt in photo upload as its own scope feature would give that column an owner.
 - [ ] Production needs its own Clerk instance registered with Supabase as a third party auth provider before this function will accept a single request there. It is a per instance setting, and it is already recorded against feature 5.
+- [ ] `claim_meal_scan` is still executable by `anon`. The migration's `revoke ... from public` does not reach it, because Supabase grants execute on public functions to `anon` directly rather than through `PUBLIC`. It is not a hole (the function raises immediately when the token carries no `sub`, and row level security still applies to every row it touches), but the migration's comment claims something untrue, which is worse than the grant. Apply `revoke all on function public.claim_meal_scan(uuid, text, text, timestamptz, timestamptz, integer) from anon;` and correct the file to match.
+- [ ] `src/data/AGENTS.md` says `supabase/migrations/` is generated and must not be hand edited. That is now true of three files out of four. The rule needs a sentence carving out a migration that declares something no table declaration can produce, which `/sync` should add rather than leaving the next person to discover it from a diff.
 - [ ] Agent Skills and MCP discovery was offered for the four new packages and declined, on the grounds that `expo-native-ui`, `supabase` and the user level Claude API skill already cover all of them. Worth recording as a decline in `AGENTS.md` so it is not offered again.
