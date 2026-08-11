@@ -109,5 +109,14 @@ $$;
 
 -- Only a signed in caller may claim, and the function's own body plus the
 -- table policy decide what they may claim.
+--
+-- `anon` is revoked by name as well as through `public`. Supabase's default
+-- privileges on this schema grant execute to `anon` and `authenticated`
+-- directly, not through the `PUBLIC` pseudo role, so the line above does not
+-- reach it and the grant would survive on a fresh project. Nothing is actually
+-- reachable that way (the body raises without a `sub`, and row level security
+-- still applies), but a grant that looks removed and is not is worse than one
+-- that is plainly there.
 revoke all on function public.claim_meal_scan(uuid, text, text, timestamptz, timestamptz, integer) from public;
+revoke all on function public.claim_meal_scan(uuid, text, text, timestamptz, timestamptz, integer) from anon;
 grant execute on function public.claim_meal_scan(uuid, text, text, timestamptz, timestamptz, integer) to authenticated;
