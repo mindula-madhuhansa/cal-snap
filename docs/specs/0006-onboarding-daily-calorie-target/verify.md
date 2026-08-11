@@ -6,13 +6,13 @@ Most of this needs a development build on a real phone. Three things cannot be c
 
 ## Commands
 
-- [ ] `npm test` → 555 passing, 45 files, nothing skipped → AC-7, AC-8, AC-10, AC-10b, AC-11, AC-13, AC-14, AC-16
-- [ ] `npm run typecheck` and `npm run lint` → both clean → AC-16
-- [ ] `npm run gen:supabase-migration`, then `git diff supabase/migrations/` → **empty**. The two applied files must keep generating byte for byte what was applied; a diff there means a later change leaked into a migration a database has already run → AC-14
-- [ ] In the live database, `select relrowsecurity, relforcerowsecurity from pg_class where oid = 'public.target_overrides'::regclass` → both true → AC-13
-- [ ] `select pg_get_expr(polqual, polrelid) from pg_policy where polrelid = 'public.target_overrides'::regclass` → reads `auth.jwt() ->> 'sub'` and **never** `auth.uid()`, which returns null under Clerk and would silently match nothing → AC-13
-- [ ] `select to_regclass('public.onboarding_draft')` → null. The draft is local only and must never have reached Postgres → AC-13
-- [ ] `select count(*) from pg_indexes where tablename = 'target_overrides' and indexdef like '%UNIQUE%'` → 0. The absence is deliberate: two offline devices may each set an override for one date → AC-10b
+- [x] `npm test` → 560 passing, 45 files, nothing skipped (555 was this file's estimate before the two device bug fixes added regression tests; 560 is correct) → AC-7, AC-8, AC-10, AC-10b, AC-11, AC-13, AC-14, AC-16
+- [x] `npm run typecheck` and `npm run lint` → both clean → AC-16
+- [x] `npm run gen:supabase-migration`, then `git diff supabase/migrations/` → empty → AC-14
+- [x] In the live database, `select relrowsecurity, relforcerowsecurity from pg_class where oid = 'public.target_overrides'::regclass` → both true → AC-13
+- [x] `select pg_get_expr(polqual, polrelid) from pg_policy where polrelid = 'public.target_overrides'::regclass` → reads `auth.jwt() ->> 'sub'`, never `auth.uid()` → AC-13
+- [x] `select to_regclass('public.onboarding_draft')` → null → AC-13
+- [x] No unique index on `(user_id, effective_from)` → confirmed (only `target_overrides_user_effective_from_idx`, non unique; the query above also counts the primary key's own index, which every table has and isn't the hazard, so it read 1 rather than 0. Fixed here to name the index directly) → AC-10b
 
 ## UI / manual
 
