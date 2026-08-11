@@ -1,0 +1,27 @@
+# Supabase project settings that belong in git rather than only in a dashboard.
+#
+# This file is deliberately small. The schema lives in `supabase/migrations/`,
+# and everything else about the project is configured through the dashboard.
+# What is here is the settings a deploy would otherwise silently reset.
+
+project_id = "kfzlocqwrzgkyqkzphfq"
+
+# Clerk's registration as a third party auth provider is deliberately not here.
+# It needs the instance's own domain, it differs between development and
+# production, and it is set in the dashboard per instance. See
+# `src/account/AGENTS.md` for what that setting is and how it fails without it.
+
+[functions.scan-meal]
+# **Off deliberately, and the function authenticates itself instead.**
+#
+# The platform check only accepts tokens Supabase signed. A Clerk session token
+# is signed by Clerk, so with this on every request is refused at the gateway
+# with a 401 and the function body never runs. That is not a configuration
+# mistake to be fixed elsewhere: the check cannot be taught about Clerk.
+#
+# `index.ts` refuses a request with no `Authorization` header, builds its
+# Supabase client from the caller's own token and holds no service role key,
+# and reaches the model only after `claim_meal_scan` succeeds, which needs a
+# real `sub` and an `authenticated` grant. Turning this back on does not harden
+# anything; it only stops the feature working.
+verify_jwt = false

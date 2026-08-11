@@ -153,9 +153,18 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return new Response('Method not allowed', { status: 405 });
   }
 
-  // Supabase verifies the Clerk token before this body runs, because Clerk is
-  // registered as a third party auth provider. Without a token there is no sub
-  // and the policies below match nothing.
+  // **This function is deployed with `verify_jwt` off, and this is the check
+  // that replaces it.** The platform check only accepts tokens Supabase itself
+  // signed; a Clerk token fails it and the request dies at the gateway with a
+  // 401 that never reaches here. Registering Clerk as a third party auth
+  // provider teaches Postgres and PostgREST to trust it, not the edge gateway.
+  //
+  // Nothing is weakened by that, because the platform check was never the gate.
+  // A caller with no token is refused here. A caller with a forged one gets
+  // past this line and no further: the client below is built from their token
+  // alone, so PostgREST refuses it, `claim_meal_scan` fails, and the request
+  // ends before the model is ever called. Spending money requires a claim, and
+  // a claim requires a real `sub`.
   const authorization = request.headers.get('Authorization');
   if (authorization === null) {
     return new Response('Unauthorized', { status: 401 });
