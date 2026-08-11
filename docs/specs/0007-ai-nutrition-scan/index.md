@@ -1,7 +1,7 @@
 # 0007. Snap a meal: the AI nutrition scan
 
 **Date**: 2026-08-11
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 
