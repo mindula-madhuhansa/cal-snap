@@ -16,7 +16,19 @@ module.exports = defineConfig([
     // `.agents/` and `.claude/` hold vendored agent skills: someone else's
     // code, pinned by `skills-lock.json` and replaced wholesale on update.
     // Linting it reports problems nobody here can fix.
-    ignores: ['dist/*', '.expo/*', 'node_modules/*', 'docs/design/*', '.agents/**', '.claude/**'],
+    ignores: [
+      'dist/*',
+      '.expo/*',
+      'node_modules/*',
+      'docs/design/*',
+      '.agents/**',
+      '.claude/**',
+      // Deno, not React Native. `supabase/functions/` runs on the edge runtime
+      // with `npm:` and `jsr:` import specifiers and its own globals, none of
+      // which this config (or the app's TypeScript project) can resolve. It is
+      // checked by `deno check` at deploy time instead.
+      'supabase/functions/**',
+    ],
   },
   {
     rules: {
