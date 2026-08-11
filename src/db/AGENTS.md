@@ -41,6 +41,9 @@ it rather than sitting in front of it. There is no ORM and no migration library.
   tables from spec 0002, and its SQL is **generated** from the declarations in `src/data/schema/`,
   not written here. `migrations.ts` imports it as `coreDataModelSql`. Migration 3 adds the
   `sync_state` watermark table, generated the same way and guarded by its own fingerprint.
+  Migration 4 adds spec 0006's `target_overrides` and `onboarding_draft`, again generated, again
+  with its own fingerprint (`ONBOARDING_FINGERPRINT`). Each new table set earns its own migration
+  and its own fingerprint rather than joining an earlier one.
 - The database file is no longer a single fixed name. `DATABASE_NAME` remains for the scaffold
   path, but a signed in person gets `calsnap-<clerk user id>.db`, opened by
   `@/data/local/database-file.ts`. One file per account is the main isolation defence on the phone.

@@ -10,7 +10,8 @@ An AI calorie counter for everyday people losing weight: snap a meal, get its nu
 - **Styling**: a typed theme module plus React Native `StyleSheet`. No styling library, one light theme, no web target
 - **Package manager**: npm
 - **Auth**: Clerk, not Supabase Auth. Spec 0004 reversed spec 0001's original row, so every `user_id` is `text` holding the Clerk identifier and every Postgres policy reads `auth.jwt() ->> 'sub'`. `auth.uid()` returns null here and would silently match nothing; never write it. Conventions live in [src/account/AGENTS.md](src/account/AGENTS.md).
-- **Partly wired**: Supabase Postgres is live (project `Cal Snap`), with the spec 0002 schema applied and row level security on every table. Sign in and sync are built but not yet confirmed on a phone: Clerk still has to be registered with Supabase as a third party auth provider with `role: authenticated`, and until it is, every Supabase request is refused. Edge functions (the vision scan, and the account deletion webhook) arrive with scope features 7 and 10. EAS development builds are wired (`eas.json`, `eas-cli`, the project linked in `app.config.ts`'s `extra.eas.projectId`); production builds and store submission are not yet.
+- **Wired and confirmed on a device**: Supabase Postgres is live (project `Cal Snap`), with the spec 0002 schema applied, the spec 0006 `target_overrides` table applied, and row level security on every table. Clerk is registered with Supabase as a **third party auth provider**, which is what puts `role: authenticated` on the session token; every policy reads `auth.jwt() ->> 'sub'`, so without that registration Supabase refuses every request. Sign up, sign in, and sync were confirmed end to end on a development build on 11 August 2026: a real account reached Clerk and its rows reached Postgres. Set this up once per Clerk instance, so **production needs it again** before release. Do **not** use the old Clerk "supabase" JWT template; Clerk deprecated it on 1 April 2025 and the native provider replaces it.
+- **Not wired yet**: edge functions (the vision scan, and the account deletion webhook) arrive with scope features 7 and 10. EAS development builds are wired (`eas.json`, `eas-cli`, the project linked in `app.config.ts`'s `extra.eas.projectId`); production builds and store submission are not yet.
 - **Decided but not wired yet**: Claude Sonnet 5 for the vision scan behind an edge function
 
 Mirrors spec [0001](docs/specs/0001-stack-architecture/index.md), which is the source of truth for this section.
@@ -109,5 +110,6 @@ MCP servers: Supabase (connected; the live project is `Cal Snap`).
 - [src/data/AGENTS.md](src/data/AGENTS.md): the one schema declaration, the two generators, the pure calculations, and the data access layer.
 - [src/db/AGENTS.md](src/db/AGENTS.md): the local SQLite store and the migration rules.
 - [src/design-system/AGENTS.md](src/design-system/AGENTS.md): the Classical theme tokens and the fonts.
+- [src/onboarding/AGENTS.md](src/onboarding/AGENTS.md): the first run setup flow, the result and goal screens, and the sentences they say.
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._

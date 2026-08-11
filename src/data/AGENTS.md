@@ -15,43 +15,50 @@ network and no client.
 
 ## Key files
 
-| File                     | Owns                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| `schema/types.ts`        | The table description type, and the terse constructors table files use         |
-| `schema/tables/*.ts`     | One file per table, plain data, no database imports                            |
-| `schema/tables/all.ts`   | `releaseOneTables`, in dependency order                                        |
-| `schema/to-sqlite.ts`    | The SQLite generator, pure                                                     |
-| `schema/to-postgres.ts`  | The Postgres generator, pure: row level security, and the arbitration triggers |
-| `schema/checks.ts`       | The one type mapping table, and how a check renders as SQL                     |
-| `schema/resolve.ts`      | The lifecycle and device only columns each dialect gets                        |
-| `schema/parity.ts`       | Reads both generated schemas back and compares them (AC-1)                     |
-| `calculations/*.ts`      | Portion rescaling, the local day, the meal type guess, units, rounding         |
-| `ids/uuid.ts`            | UUID version 7 and version 5, pure; `ids/sha1.ts` backs version 5              |
-| `ids/device.ts`          | The device's real randomness. The only Expo import in `ids/`                   |
-| `local/database.ts`      | The narrow `SqlDatabase` port the whole data layer talks to                    |
-| `local/migrations.ts`    | SQLite migration 2's SQL, generated, plus its fingerprint guard                |
-| `local/meals.ts`         | `saveMeal`, `listMealsForDay`, `deleteMeal`, `totalsForDay`                    |
-| `local/daily-targets.ts` | `getOrCreateDailyTarget`, which takes the calorie formula as an argument       |
-| `local/past-items.ts`    | `searchPastItems`, the add by hand search over your own history                |
-| `local/streak.ts`        | `computeStreak`                                                                |
-| `local/database-file.ts` | The per user database file, opened on sign in and removed on sign out          |
-| `local/database-name.ts` | Naming and validating that file from a Clerk identifier. Pure                  |
-| `local/pending.ts`       | `countPendingPushes` (the gate) and `countPendingMeals` (what a person reads)  |
-| `local/rows.ts`          | The database row shapes, and the mapping into the app's shapes                 |
-| `remote/transport.ts`    | The narrow `SyncTransport` port, and `BEGINNING_OF_TIME`                       |
-| `remote/push.ts`         | Dirty rows up, upserted on the key, and the server's reply written back        |
-| `remote/pull.ts`         | Rows down by keyset from the watermark, with the sticky delete rule            |
-| `remote/sync.ts`         | `runSync`: push, then pull, with a reason. Safe to call repeatedly             |
-| `remote/codec.ts`        | Row shapes across the wire, and the device only columns kept off it            |
-| `remote/sync-state.ts`   | Reading and advancing the per table pull watermark                             |
+| File                               | Owns                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| `schema/types.ts`                  | The table description type, and the terse constructors table files use         |
+| `schema/tables/*.ts`               | One file per table, plain data, no database imports                            |
+| `schema/tables/all.ts`             | `releaseOneTables` (frozen), `onboardingTables`, and `syncedTableDeclarations` |
+| `schema/to-sqlite.ts`              | The SQLite generator, pure                                                     |
+| `schema/to-postgres.ts`            | The Postgres generator, pure: row level security, and the arbitration triggers |
+| `schema/checks.ts`                 | The one type mapping table, and how a check renders as SQL                     |
+| `schema/resolve.ts`                | The lifecycle and device only columns each dialect gets                        |
+| `schema/parity.ts`                 | Reads both generated schemas back and compares them (AC-1)                     |
+| `calculations/*.ts`                | Portion rescaling, the local day, the meal type guess, units, rounding         |
+| `calculations/calorie-target.ts`   | Mifflin-St Jeor, the activity multipliers, the pace, the safety floor. Pure    |
+| `calculations/onboarding-steps.ts` | The setup question order and the arithmetic of moving through it               |
+| `calculations/unit-default.ts`     | Which unit family a locale implies. A default only                             |
+| `ids/uuid.ts`                      | UUID version 7 and version 5, pure; `ids/sha1.ts` backs version 5              |
+| `ids/device.ts`                    | The device's real randomness. The only Expo import in `ids/`                   |
+| `local/database.ts`                | The narrow `SqlDatabase` port the whole data layer talks to                    |
+| `local/migrations.ts`              | The generated SQL for migrations 2, 3 and 4, each with its fingerprint guard   |
+| `local/meals.ts`                   | `saveMeal`, `listMealsForDay`, `deleteMeal`, `totalsForDay`                    |
+| `local/daily-targets.ts`           | `getOrCreateDailyTarget`, which takes the calorie formula as an argument       |
+| `local/target-formula.ts`          | The formula that argument is filled with: the override, else Mifflin-St Jeor   |
+| `local/target-overrides.ts`        | A target the person set for themselves, applying from one date forward         |
+| `local/onboarding.ts`              | The setup draft, and the one transaction that turns it into a real profile     |
+| `local/profile.ts`                 | `readProfile` and `updateProfileAnswers`, for changing an answer after setup   |
+| `local/past-items.ts`              | `searchPastItems`, the add by hand search over your own history                |
+| `local/streak.ts`                  | `computeStreak`                                                                |
+| `local/database-file.ts`           | The per user database file, opened on sign in and removed on sign out          |
+| `local/database-name.ts`           | Naming and validating that file from a Clerk identifier. Pure                  |
+| `local/pending.ts`                 | `countPendingPushes` (the gate) and `countPendingMeals` (what a person reads)  |
+| `local/rows.ts`                    | The database row shapes, and the mapping into the app's shapes                 |
+| `remote/transport.ts`              | The narrow `SyncTransport` port, and `BEGINNING_OF_TIME`                       |
+| `remote/push.ts`                   | Dirty rows up, upserted on the key, and the server's reply written back        |
+| `remote/pull.ts`                   | Rows down by keyset from the watermark, with the sticky delete rule            |
+| `remote/sync.ts`                   | `runSync`: push, then pull, with a reason. Safe to call repeatedly             |
+| `remote/codec.ts`                  | Row shapes across the wire, and the device only columns kept off it            |
+| `remote/sync-state.ts`             | Reading and advancing the per table pull watermark                             |
 
 ## Commands
 
-| Command                          | What it does                                                        |
-| -------------------------------- | ------------------------------------------------------------------- |
-| `npm test`                       | The whole suite, including the parity and fingerprint checks        |
-| `npm test src/data/schema`       | Just the generators and the parity check                            |
-| `npm run gen:supabase-migration` | Rewrites both files in `supabase/migrations/` from the declarations |
+| Command                          | What it does                                                             |
+| -------------------------------- | ------------------------------------------------------------------------ |
+| `npm test`                       | The whole suite, including the parity and fingerprint checks             |
+| `npm test src/data/schema`       | Just the generators and the parity check                                 |
+| `npm run gen:supabase-migration` | Rewrites all three files in `supabase/migrations/` from the declarations |
 
 ## Conventions
 
@@ -91,6 +98,29 @@ network and no client.
   the user and the date, so two offline phones produce the same row and collide on the primary key
   where newest write wins can see it. Every other table uses version 7. Adding a day keyed table
   means using `dayScopedId`.
+- **A date keyed table is not automatically day scoped, and `target_overrides` is the exception that
+  proves it.** It carries an `effective_from` date and is soft deletable, and it deliberately uses
+  version **7** with **no unique index**. A deterministic identifier would make setting an override,
+  clearing it, and setting another for the same date a _revival_ of the tombstoned row, which spec
+  0005's sticky delete trigger refuses: the push comes back as the tombstone, `pushChanges` writes
+  that whole row into SQLite, and the person's new number vanishes with nothing failing. Reach for
+  `dayScopedId` only when two devices creating the same day should produce **one** row and the row
+  is never re-created after deletion. Otherwise take a fresh identifier and order on read.
+  `weight_entries` and `daily_targets` still carry this hazard; it is on the scope as its own
+  decision.
+- **`releaseOneTables` is frozen; add a new synced table to `syncedTableDeclarations`.** That list
+  generates migration 2, which has shipped, so appending to it would retroactively change what a
+  phone already ran and `CORE_DATA_MODEL_FINGERPRINT` fails the suite. A new table goes in its own
+  declaration, its own list (`onboardingTables`), its own SQLite migration with its own fingerprint,
+  and its own Postgres file. `remote/tables.ts` and the parity check both read
+  `syncedTableDeclarations`, so a table added there syncs and is compared with no edit in either
+  place.
+- **A retryable write must not be a bare insert.** `completeOnboarding` tells the person their
+  answers are saved and to try again, so the second attempt has to be able to succeed:
+  both its writes upsert. `profiles` is keyed on `user_id` and `weight_entries` is unique on
+  `(user_id, on_date)` while live, so an unfinished profile row, a weigh in already logged today, or
+  a single failed attempt otherwise makes every later attempt fail identically. A real device found
+  this on 10 August 2026.
 - `CALSNAP_NAMESPACE` in `ids/uuid.ts` is frozen. Changing it renames every existing day keyed row
   on every device.
 - `eaten_on` is decided once at save time and never recomputed. A meal saved at 23:50 in Colombo
@@ -136,7 +166,8 @@ network and no client.
   what was applied.** `20260809000000_core_data_model.sql` is applied, so regenerating it must leave
   `git diff` empty; a non empty diff there means a later change leaked into a migration a database
   has already run, and that is the failure signal. A new change gets its own emitter and its own
-  file, the way `toPostgresSyncTriggers` did.
+  file, the way `toPostgresSyncTriggers` did. There are three files now, all applied: the core
+  model, the arbitration triggers, and `20260810120000_target_overrides.sql` (spec 0006).
 - Test files and `test/support/` typecheck under `tsconfig.test.json`, not the app config, so Node
   globals stay out of app source.
 

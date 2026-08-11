@@ -18,7 +18,7 @@ under plain Node, so a rule that lives in a `.tsx` file cannot be tested at all.
 
 | File                    | Owns                                                                                          |
 | ----------------------- | --------------------------------------------------------------------------------------------- |
-| `session.tsx`           | The session state machine, the strict startup sequence, and three contexts                    |
+| `session.tsx`           | The session state machine, the strict startup sequence, and four contexts                     |
 | `use-sign-in-or-up.ts`  | The combined door: one email field decides sign in or sign up, then password or code          |
 | `error-messages.ts`     | Every provider failure mapped to a written sentence. Pure                                     |
 | `session-end.ts`        | Whether a sync failure means the session ended, and what to say. Pure                         |
@@ -60,6 +60,11 @@ under plain Node, so a rule that lives in a `.tsx` file cannot be tested at all.
 - **Route from the pulled `profiles` row, never the local one**, or a person who onboarded on
   another phone is marched through onboarding again and overwrites the target they already have.
   When the pull fails, the local row is the fallback and the app says it is offline.
+- **The destination is decided once per launch, so a screen that changes it has to say so.** Setup
+  finishing is the only case today: `useOnboardingHandover` moves a `ready` state's destination from
+  onboarding to today, and nothing else. It deliberately does not re-run the startup sequence,
+  because the profile it would pull is the one this device just wrote. The screen must also
+  navigate afterwards; see [src/app/AGENTS.md](../app/AGENTS.md) for why both halves are needed.
 - **`draining` is a signed out state that still holds a Clerk session.** That is the one place the
   app and Clerk disagree on purpose. The session exists to push the owed rows and for nothing
   else, and it ends the moment they land. No screen may read that account's file while it drains.
@@ -88,10 +93,18 @@ Code alone does not make this work. All of these are settings, and each fails in
   strategies, and the password attribute set to **optional**. Clerk defaults it to required, which
   contradicts the sign up flow directly: the person sees their email verified and then a failure
   they cannot act on.
-- Clerk: `"role": "authenticated"` as a custom claim on the session token.
-- Supabase: Clerk registered as a third party auth provider. **Still owed.** Without it every
-  Supabase request is refused, the startup profile pull falls back to the local row, and sync
-  cannot work at all.
+- Clerk: the Supabase integration activated, which is what puts `"role": "authenticated"` on the
+  session token. Activating it is the whole of that claim; do not add it by hand.
+- Supabase: Clerk registered as a third party auth provider (Authentication, then Sign In and
+  Providers, then add Clerk and paste the Clerk domain the integration reveals). Without it every
+  Supabase request is refused, the startup profile pull falls back to the local row, and sync cannot
+  work at all.
+- **Both of the above are done for the development instance and were confirmed end to end on a
+  device on 11 August 2026.** They are per instance settings, so **production needs them again**
+  before release.
+- Do **not** create a Clerk JWT template named `supabase`. Clerk deprecated that route on 1 April
+  2025 and the native provider above replaces it. `.agents/skills/clerk-cli/references/recipes.md`
+  still shows the old way; it is wrong for this project.
 
 ## Agent skills
 
