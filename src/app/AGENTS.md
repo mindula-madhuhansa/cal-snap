@@ -13,10 +13,10 @@ any screen renders.
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `_layout.tsx`         | Startup gating, the splash screen, providers, and the root stack                                                            |
 | `sign-in.tsx`         | The combined door: one email field, then a password or an emailed code                                                      |
-| `onboarding.tsx`      | The onboarding destination. A placeholder until scope feature 6 builds it                                                   |
+| `onboarding.tsx`      | First run setup: one route rendering one question at a time, driven by the stored draft step                                |
 | `(tabs)/_layout.tsx`  | The tab bar and its theming                                                                                                 |
 | `(tabs)/index.tsx`    | The Today tab, built from the design system with labelled sample data; the real one, reading a real day, is scope feature 9 |
-| `(tabs)/settings.tsx` | The Settings tab: the signed in email, and signing out                                                                      |
+| `(tabs)/settings.tsx` | The Settings tab: the signed in email, "Your goal", and signing out                                                         |
 
 ## Conventions
 
@@ -53,6 +53,12 @@ any screen renders.
 - While signed out, the sign in screen is the only screen **mounted**, not merely the target of a
   redirect. That is what makes a deep link and a back gesture unable to reach a diary, so keep the
   guard on what the stack renders rather than turning it into a redirect.
+- **Leaving a gated screen takes two steps, and it needs both.** Because the gate renders one screen
+  at a time, a screen that finishes its job has to change what the gate _declares_ (onboarding does
+  this through `useOnboardingHandover` in `@/account/session`) **and then** navigate, once the new
+  screen is actually declared. Changing the gate alone does not move the route already showing, and
+  navigating alone has nowhere to go. Doing only the first left the finished setup screen up for
+  ever, on a real device, on 10 August 2026.
 - Safe area insets are applied by the `Screen` component (`@/design-system/components/screen`),
   not per screen with a local `useSafeAreaInsets` call. `Screen` applies the top inset as content
   padding rather than a margin, so content still scrolls under the status bar the way the design

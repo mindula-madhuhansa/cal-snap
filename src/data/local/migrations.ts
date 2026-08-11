@@ -1,5 +1,5 @@
 import { sha1 } from '../ids/sha1';
-import { releaseOneTables } from '../schema/tables/all';
+import { onboardingTables, releaseOneTables } from '../schema/tables/all';
 import { syncState } from '../schema/tables/sync-state';
 import { toSqlite } from '../schema/to-sqlite';
 
@@ -41,6 +41,19 @@ export const syncStateSql: string = toSqlite([syncState]);
 /** The digest of `syncStateSql` as it shipped. Never update this by hand. */
 export const SYNC_STATE_FINGERPRINT: string = '34f698be2c75cb8417a9c57fe74c1951a70048a5';
 
+/**
+ * SQLite migration 4: `target_overrides` and `onboarding_draft`, the two
+ * tables spec 0006 adds. Same generator, same declarations, its own
+ * fingerprint, and its own migration because migrations 2 and 3 have shipped.
+ *
+ * The two ship together because they arrive together: a person cannot set an
+ * override before finishing the setup the draft carries.
+ */
+export const onboardingSql: string = toSqlite(onboardingTables);
+
+/** The digest of `onboardingSql` as it shipped. Never update this by hand. */
+export const ONBOARDING_FINGERPRINT: string = 'da85176003f3347b8a6a0846d52daac5fd76cf66';
+
 export type FingerprintCheck =
   | { readonly kind: 'unchanged' }
   | { readonly kind: 'changed'; readonly expected: string; readonly actual: string };
@@ -62,6 +75,14 @@ export const checkSyncStateFingerprint = (): FingerprintCheck => {
   return actual === SYNC_STATE_FINGERPRINT
     ? { kind: 'unchanged' }
     : { kind: 'changed', expected: SYNC_STATE_FINGERPRINT, actual };
+};
+
+/** The same guard for migration 4. */
+export const checkOnboardingFingerprint = (): FingerprintCheck => {
+  const actual = digestOf(onboardingSql);
+  return actual === ONBOARDING_FINGERPRINT
+    ? { kind: 'unchanged' }
+    : { kind: 'changed', expected: ONBOARDING_FINGERPRINT, actual };
 };
 
 export { digestOf };

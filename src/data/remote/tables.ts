@@ -1,6 +1,6 @@
 import { sharedColumns } from '../schema/resolve';
-import { releaseOneTables } from '../schema/tables/all';
-import type { Column } from '../schema/types';
+import { syncedTableDeclarations } from '../schema/tables/all';
+import type { Column, Table } from '../schema/types';
 
 /**
  * What sync needs to know about a table, derived from the one declaration in
@@ -24,7 +24,7 @@ export type SyncTable = {
   readonly columns: readonly Column[];
 };
 
-const asSyncTable = (table: (typeof releaseOneTables)[number]): SyncTable => {
+const asSyncTable = (table: Table): SyncTable => {
   const [key, ...rest] = table.primaryKey;
 
   // Every synced table has a single column key (`id`, or `user_id` on
@@ -45,6 +45,6 @@ const asSyncTable = (table: (typeof releaseOneTables)[number]): SyncTable => {
  * its items and a push never sends a child whose parent the server has not
  * seen.
  */
-export const syncedTables: readonly SyncTable[] = releaseOneTables.map(asSyncTable);
+export const syncedTables: readonly SyncTable[] = syncedTableDeclarations.map(asSyncTable);
 
 export const syncTableNames: readonly string[] = syncedTables.map((table) => table.name);

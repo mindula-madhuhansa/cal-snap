@@ -32,6 +32,7 @@ const aFormula = (): TargetFormula =>
   vi.fn((input) => ({
     calories: Math.round((input.weightKg ?? 60) * 28),
     formulaVersion: 'stub-v1',
+    source: 'computed' as const,
   }));
 
 describe('getOrCreateDailyTarget', () => {

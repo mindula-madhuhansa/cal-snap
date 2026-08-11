@@ -446,7 +446,15 @@ describe('syncedTables', () => {
       'meal_items',
       'daily_targets',
       'weight_entries',
+      'target_overrides',
     ]);
+  });
+
+  // covers: AC-13 (spec 0006). The draft is `presence: 'sqlite'`, so the
+  // partial answers of an unfinished setup never leave the one device giving
+  // them, and no push can carry them.
+  it('never sends the onboarding draft', () => {
+    expect(syncedTables.map((table) => table.name)).not.toContain('onboarding_draft');
   });
 
   it('never sends the two device only columns', () => {

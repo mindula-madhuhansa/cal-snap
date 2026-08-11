@@ -3,6 +3,7 @@ import { failed, ok, type DailyTarget, type DataResult } from '../types';
 
 import type { SqlDatabase } from './database';
 import { nowIso, optional, type DailyTargetRow } from './rows';
+import { resolveOverride, type TargetOverride } from './target-overrides';
 
 /**
  * The profile fields a calorie formula needs. Named here so this module does
@@ -24,6 +25,12 @@ export type TargetInputs = {
   /** The newest weigh in at or before the day, in kilograms. */
   readonly weightKg?: number;
   readonly onDate: string;
+  /**
+   * The target the person set for themselves, if one applies on this date
+   * (spec 0006, AC-10). Resolved here and handed to the formula rather than
+   * read by it, because the formula stays pure and knows no database.
+   */
+  readonly override?: TargetOverride;
 };
 
 export type ComputedTarget = {
@@ -33,6 +40,12 @@ export type ComputedTarget = {
   readonly fatG?: number;
   /** Which calculation produced it, recorded so a past day stays explainable. */
   readonly formulaVersion: string;
+  /**
+   * Whether the number came from the formula or from the person. The row used
+   * to be written with a `'computed'` literal, which was true until spec 0006
+   * let a person set their own.
+   */
+  readonly source: 'computed' | 'manual';
 };
 
 /**
@@ -98,10 +111,18 @@ export const getOrCreateDailyTarget = async (
     [query.userId, query.onDate],
   );
 
+  // Read once, here, at the only moment a day's row is ever created. That is
+  // what makes a backdated `effective_from` harmless: it cannot reach a day
+  // already written, and it applies to every day from that date not yet
+  // created (spec 0006, key invariants).
+  const override = await resolveOverride(db, query);
+  if (override.kind === 'failed') return failed(override.message);
+
   const computed = formula({
     profile,
     onDate: query.onDate,
     ...(weight === null ? {} : { weightKg: weight.weight_kg }),
+    ...(override.value === undefined ? {} : { override: override.value }),
   });
   if (computed === undefined) {
     return failed('We could not work out a daily target from your profile yet.');
@@ -117,7 +138,7 @@ export const getOrCreateDailyTarget = async (
     `INSERT INTO daily_targets (
        id, user_id, on_date, calories, protein_g, carbs_g, fat_g, source, formula_version,
        created_at, updated_at, deleted_at, is_dirty, synced_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, 'computed', ?, ?, ?, NULL, 1, NULL)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 1, NULL)
      ON CONFLICT (id) DO NOTHING`,
     [
       id,
@@ -127,6 +148,7 @@ export const getOrCreateDailyTarget = async (
       computed.proteinG ?? null,
       computed.carbsG ?? null,
       computed.fatG ?? null,
+      computed.source,
       computed.formulaVersion,
       at,
       at,

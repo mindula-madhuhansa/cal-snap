@@ -8,7 +8,7 @@
  *   - Each one runs inside a transaction, so a failure leaves the previous
  *     version intact rather than a half-applied schema.
  */
-import { coreDataModelSql, syncStateSql } from '@/data/local/migrations';
+import { coreDataModelSql, onboardingSql, syncStateSql } from '@/data/local/migrations';
 
 export type Migration = {
   readonly version: number;
@@ -59,7 +59,24 @@ const syncStateTable: Migration = {
   sql: syncStateSql,
 };
 
-export const migrations: readonly Migration[] = [initial, coreDataModel, syncStateTable];
+/**
+ * `target_overrides` and `onboarding_draft` (spec 0006): the manual daily
+ * target, and the answers given so far during first run setup. Generated from
+ * the same declarations and guarded by its own fingerprint, and its own
+ * migration because migrations 2 and 3 have shipped.
+ */
+const onboarding: Migration = {
+  version: 4,
+  name: 'onboarding',
+  sql: onboardingSql,
+};
+
+export const migrations: readonly Migration[] = [
+  initial,
+  coreDataModel,
+  syncStateTable,
+  onboarding,
+];
 
 /** The version the database should be at once every migration has run. */
 export const latestVersion: number = migrations.length;

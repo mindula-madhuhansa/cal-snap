@@ -123,6 +123,31 @@ const SessionNoticeContext = createContext<SessionNotice>({
 export const useSessionNotice = (): SessionNotice => useContext(SessionNoticeContext);
 
 /**
+ * How first run setup hands over once it has finished (spec 0006, AC-1).
+ *
+ * The destination is decided once per launch, from the profile pulled at step
+ * 3, and while it says `onboarding` the setup screen is the only screen
+ * mounted. So finishing setup cannot simply navigate: there is nothing to
+ * navigate to. This is setup telling the gate that the answer it routed on has
+ * changed.
+ *
+ * Narrow on purpose. It moves the destination and nothing else, rather than
+ * re-running the startup sequence, because the profile it would pull is the
+ * one this device just wrote and a second pull would only add a delay and a
+ * chance to fail in front of somebody who has finished.
+ */
+export type OnboardingHandover = {
+  readonly onboardingFinished: () => void;
+};
+
+const OnboardingHandoverContext = createContext<OnboardingHandover>({
+  onboardingFinished: () => undefined,
+});
+
+export const useOnboardingHandover = (): OnboardingHandover =>
+  useContext(OnboardingHandoverContext);
+
+/**
  * Step 3: the single `profiles` row, pulled from the server before routing.
  *
  * Deliberately server first, every sign in. Routing from the local row would
@@ -336,10 +361,32 @@ export const AccountProvider = ({ children }: { readonly children: ReactNode }) 
     [notice, reportSessionEnded, dismissNotice],
   );
 
+  /**
+   * Only ever moves a `ready` state's destination from onboarding to today,
+   * and `offline: false` because the profile it is routing on was written on
+   * this device a moment ago rather than pulled from anywhere.
+   */
+  const onboardingFinished = useCallback((): void => {
+    setState((previous) =>
+      previous.kind === 'ready' && previous.destination.kind === 'onboarding'
+        ? { ...previous, destination: { kind: 'today', offline: false } }
+        : previous,
+    );
+  }, []);
+
+  const handoverView = useMemo<OnboardingHandover>(
+    () => ({ onboardingFinished }),
+    [onboardingFinished],
+  );
+
   return (
     <AccountContext.Provider value={state}>
       <DrainingContext.Provider value={drainingView}>
-        <SessionNoticeContext.Provider value={noticeView}>{children}</SessionNoticeContext.Provider>
+        <SessionNoticeContext.Provider value={noticeView}>
+          <OnboardingHandoverContext.Provider value={handoverView}>
+            {children}
+          </OnboardingHandoverContext.Provider>
+        </SessionNoticeContext.Provider>
       </DrainingContext.Provider>
     </AccountContext.Provider>
   );
