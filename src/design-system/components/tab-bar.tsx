@@ -27,6 +27,7 @@ import { Icon, type IconName } from './icon';
  */
 const marks: Readonly<Record<string, IconName>> = {
   index: 'today',
+  scan: 'camera',
   settings: 'account',
 };
 

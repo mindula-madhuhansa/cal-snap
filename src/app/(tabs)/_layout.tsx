@@ -17,6 +17,7 @@ export default function TabsLayout() {
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: 'Today' }} />
+      <Tabs.Screen name="scan" options={{ title: 'Scan' }} />
       <Tabs.Screen name="settings" options={{ title: 'You' }} />
     </Tabs>
   );

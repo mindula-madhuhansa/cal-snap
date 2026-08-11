@@ -3,6 +3,6 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["test/**/*.ts", "src/**/*.test.ts"],
+  "include": ["test/**/*.ts", "src/**/*.test.ts", "supabase/functions/**/*.test.ts"],
   "exclude": ["node_modules"]
 }

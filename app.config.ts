@@ -76,6 +76,29 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // model). App code never touches it directly, but the native module has
     // to be in the build or `@clerk/expo/token-cache` cannot resolve.
     'expo-secure-store',
+    // Snap a meal (spec 0007). All three are native code, so this feature needs
+    // a **new development build**; a client built before it will not run.
+    //
+    // The usage descriptions are not optional polish: a missing one is an App
+    // Store rejection rather than a runtime error, and on both platforms it is
+    // the sentence a person reads when the system asks. Each says why CalSnap
+    // wants the permission, not what the permission is.
+    [
+      'expo-camera',
+      {
+        cameraPermission: 'CalSnap uses the camera to photograph your meal and read its nutrition.',
+        // Video and the microphone are not used, so they are not asked for.
+        recordAudioAndroid: false,
+      },
+    ],
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'CalSnap opens your photo library so you can scan a meal you already photographed.',
+      },
+    ],
+    'expo-image-manipulator',
     [
       'expo-splash-screen',
       {
