@@ -19,7 +19,7 @@ Most of this needs a development build on a real phone. Three things cannot be c
 ### Getting in and out of setup
 
 - [ ] Sign in as a brand new account → expect the consent screen, not Today → AC-1
-- [ ] Press **Start using CalSnap** on the result screen → expect to land on Today within a moment, not to sit on "Saving your daily target". Both device bugs of 10 August 2026 ended here: first the write threw, then the write succeeded but nothing navigated → AC-1, AC-6
+- [x] Press **Start using CalSnap** on the result screen → expect to land on Today within a moment, not to sit on "Saving your daily target". Both device bugs of 10 August 2026 ended here: first the write threw, then the write succeeded but nothing navigated. Confirmed on a real phone on 11 August 2026: lands on Today directly → AC-1, AC-6
 - [ ] Press **Start using CalSnap**, and if it ever fails, press it again → expect the second press to succeed. Finishing setup has to survive a retry → AC-6
 - [ ] Finish setup, force quit, reopen → expect Today, never setup again → AC-1
 - [ ] **Second device.** Sign in on a second development build with the same account, having finished setup on the first → expect Today directly, with the target and answers already there and setup never shown → AC-1, AC-13
@@ -58,7 +58,7 @@ Most of this needs a development build on a real phone. Three things cannot be c
 - [ ] Read tomorrow's `daily_targets` row after tomorrow arrives (or set the phone's clock forward) → `source` = `manual`, `formula_version` = `manual-v1`, and the number you set → AC-10
 - [ ] Clear it → expect a sentence saying later days go back to the worked out number, and today still unchanged → AC-10, AC-11
 - [ ] Change activity level from Settings → expect the same "starts tomorrow" sentence, and today's target untouched → AC-11, AC-12
-- [ ] **The one that used to lose data.** Set an override, clear it, set a different one for the same date, then let a sync run. Read the row back → expect the **second** number, live, not a tombstone and not the first number → AC-10b
+- [x] **The one that used to lose data.** Set an override, clear it, set a different one for the same date, then let a sync run. Read the row back → expect the **second** number, live, not a tombstone and not the first number. Confirmed on a real phone on 11 August 2026: the second number stuck → AC-10b
 
 ### Sync and failure
 
