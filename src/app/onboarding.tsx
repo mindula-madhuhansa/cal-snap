@@ -48,8 +48,13 @@ const PROMPTS = {
   weight: { title: 'What do you weigh?', subtitle: 'Roughly is fine. You can update it any time.' },
   activity: { title: 'How active is a normal day?' },
   goal_direction: { title: 'What are you here to do?' },
-  goal_pace: { title: 'How fast?' },
-  result: { title: 'Here is your daily target' },
+  goal_pace: {
+    title: 'How fast do we go?',
+    subtitle:
+      'Pick something you’d still be doing in a month. Change it whenever — nothing you’ve logged gets rewritten.',
+  },
+  // No title: the result step draws its own heading under the ring.
+  result: {},
 } as const;
 
 const QUESTION_STEPS: Readonly<Record<string, (props: StepProps) => React.ReactElement>> = {
@@ -134,7 +139,7 @@ const OnboardingFlowScreen = ({
 
   return (
     <StepFrame
-      title={prompt.title}
+      {...('title' in prompt ? { title: prompt.title } : {})}
       {...('subtitle' in prompt ? { subtitle: prompt.subtitle } : {})}
       position={phase.progress.position}
       total={phase.progress.total}

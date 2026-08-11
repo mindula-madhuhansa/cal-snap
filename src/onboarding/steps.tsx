@@ -4,6 +4,8 @@ import { StyleSheet, View } from 'react-native';
 import { CONSENT_SUMMARY } from '@/config/consent';
 import {
   ACTIVITY_MULTIPLIERS,
+  DAYS_PER_WEEK,
+  KCAL_PER_KG,
   type ActivityLevel,
   type GoalDirection,
   type Sex,
@@ -18,6 +20,7 @@ import {
 import type { OnboardingAnswers } from '@/data/local/onboarding';
 import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
+import { Callout } from '@/design-system/components/callout';
 import { RadioRow } from '@/design-system/components/radio-row';
 import { SegmentedControl } from '@/design-system/components/segmented-control';
 import { Stepper } from '@/design-system/components/stepper';
@@ -48,7 +51,7 @@ const BOUNDS = {
 export const ConsentStep = ({ onAnswer, busy }: StepProps) => (
   <View style={styles.stack}>
     {CONSENT_SUMMARY.map((line) => (
-      <AppText key={line} variant="body" color={colors.textSubtle}>
+      <AppText key={line} variant="body" color={colors.textMuted}>
         {line}
       </AppText>
     ))}
@@ -72,7 +75,7 @@ const SEXES: readonly { readonly value: Sex; readonly label: string }[] = [
 
 export const SexStep = ({ answers, onAnswer, busy }: StepProps) => (
   <View style={styles.stack}>
-    {SEXES.map((option, index) => (
+    {SEXES.map((option) => (
       <RadioRow
         key={option.value}
         label={option.label}
@@ -80,7 +83,6 @@ export const SexStep = ({ answers, onAnswer, busy }: StepProps) => (
         onSelect={() => {
           if (!busy) onAnswer({ sex: option.value });
         }}
-        last={index === SEXES.length - 1}
         accessibilityLabel={option.label}
         testID={`onboarding-sex-${option.value}`}
       />
@@ -91,7 +93,7 @@ export const SexStep = ({ answers, onAnswer, busy }: StepProps) => (
       two coefficients and no third, so offering a third option would mean
       picking one of these behind the person's back and not telling them.
     */}
-    <AppText variant="caption" color={colors.textSubtle}>
+    <AppText variant="caption" color={colors.textMuted}>
       The equation the target comes from only has these two settings. We would rather say so than
       quietly pick one for you.
     </AppText>
@@ -261,7 +263,7 @@ export const ActivityStep = ({ answers, onAnswer, busy }: StepProps) => {
 
   return (
     <View style={styles.stack}>
-      {levels.map((level, index) => (
+      {levels.map((level) => (
         <RadioRow
           key={level}
           label={ACTIVITY_LABELS[level]}
@@ -269,7 +271,6 @@ export const ActivityStep = ({ answers, onAnswer, busy }: StepProps) => {
           onSelect={() => {
             if (!busy) onAnswer({ activityLevel: level });
           }}
-          last={index === levels.length - 1}
           accessibilityLabel={ACTIVITY_LABELS[level]}
           testID={`onboarding-activity-${level}`}
         />
@@ -286,7 +287,7 @@ const GOALS: readonly { readonly value: GoalDirection; readonly label: string }[
 
 export const GoalDirectionStep = ({ answers, onAnswer, busy }: StepProps) => (
   <View style={styles.stack}>
-    {GOALS.map((goal, index) => (
+    {GOALS.map((goal) => (
       <RadioRow
         key={goal.value}
         label={goal.label}
@@ -301,7 +302,6 @@ export const GoalDirectionStep = ({ answers, onAnswer, busy }: StepProps) => (
               : { goalDirection: goal.value },
           );
         }}
-        last={index === GOALS.length - 1}
         accessibilityLabel={goal.label}
         testID={`onboarding-goal-${goal.value}`}
       />
@@ -311,21 +311,34 @@ export const GoalDirectionStep = ({ answers, onAnswer, busy }: StepProps) => (
 
 /** The paces offered, all inside the column's 0 to 1.5 bound. */
 const PACES: readonly { readonly value: number; readonly label: string }[] = [
-  { value: 0.25, label: 'Gentle' },
-  { value: 0.5, label: 'Steady' },
+  { value: 0.25, label: 'Cruise' },
+  { value: 0.5, label: 'Steady climb' },
   { value: 0.75, label: 'Brisk' },
-  { value: 1, label: 'Fast' },
+  { value: 1, label: 'Full send' },
 ];
+
+/**
+ * The daily calorie change a pace implies, derived from the same constant the
+ * target itself uses rather than typed out beside it.
+ *
+ * This is why the figures here are 275, 550, 825 and 1100 rather than the
+ * rounder 250, 500 and 750 a mock might show: 0.25 kg a week really is
+ * 0.25 × 7700 ÷ 7 kilocalories a day. Showing the round number would put a
+ * figure on screen that the number on the next screen disagrees with, and
+ * `AGENTS.md` asks that a health figure is never prettier than the truth.
+ */
+const dailyChangeForPace = (rateKgPerWeek: number): number =>
+  Math.round((rateKgPerWeek * KCAL_PER_KG) / DAYS_PER_WEEK);
 
 export const GoalPaceStep = ({ answers, onAnswer, busy }: StepProps) => {
   const holding = answers.goalDirection === 'hold';
   const [rate, setRate] = useState(answers.goalRateKgPerWeek ?? 0.5);
-  const direction = answers.goalDirection === 'gain' ? 'gain' : 'lose';
+  const gaining = answers.goalDirection === 'gain';
 
   if (holding) {
     return (
       <View style={styles.stack}>
-        <AppText variant="body" color={colors.textSubtle}>
+        <AppText variant="body" color={colors.textMuted}>
           You are staying where you are, so there is no pace to set. Your target will be roughly
           what you burn in a day.
         </AppText>
@@ -336,17 +349,32 @@ export const GoalPaceStep = ({ answers, onAnswer, busy }: StepProps) => {
 
   return (
     <View style={styles.stack}>
-      <SegmentedControl
-        options={PACES.map((pace) => ({ value: String(pace.value), label: pace.label }))}
-        value={String(rate)}
-        onChange={(next) => setRate(Number(next))}
-        accessibilityLabel="How fast you want to go"
-        testID="onboarding-pace"
-      />
+      {PACES.map((pace) => {
+        const change = dailyChangeForPace(pace.value);
+        const sign = gaining ? '+' : '−';
 
-      <AppText variant="caption" color={colors.textSubtle}>
-        {`About ${rate} kg a week ${direction === 'gain' ? 'on' : 'off'}. A slower pace is easier to keep up, and you can change this later.`}
-      </AppText>
+        return (
+          <RadioRow
+            key={pace.value}
+            label={pace.label}
+            subtitle={`${pace.value} KG/WK · ${sign}${change} KCAL`}
+            selected={rate === pace.value}
+            onSelect={() => setRate(pace.value)}
+            accessibilityLabel={`${pace.label}, ${pace.value} kilograms a week, about ${change} kilocalories a day ${gaining ? 'more' : 'less'}`}
+            testID={`onboarding-pace-${pace.value}`}
+          />
+        );
+      })}
+
+      {/*
+        AC-8's promise, said before the number rather than after it. The floor
+        is the one place the app overrides what was asked for, so somebody
+        picking the fastest pace should already know it exists.
+      */}
+      <Callout
+        message="Push harder and we still won’t take you below a safe floor."
+        emphasis="We’ll say so if it tries."
+      />
 
       <ContinueButton disabled={busy} onPress={() => onAnswer({ goalRateKgPerWeek: rate })} />
     </View>

@@ -3,11 +3,14 @@ import { StyleSheet, View } from 'react-native';
 
 import { useDraining, useSessionNotice } from '@/account/session';
 import { useSignInOrUp } from '@/account/use-sign-in-or-up';
+import { AppMark } from '@/design-system/components/app-mark';
 import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
 import { CaptchaMount } from '@/design-system/components/captcha-mount';
+import { Divider } from '@/design-system/components/divider';
 import { Field } from '@/design-system/components/field';
 import { Notice } from '@/design-system/components/notice';
+import { NumberedList } from '@/design-system/components/numbered-list';
 import { Screen } from '@/design-system/components/screen';
 import { TextInput } from '@/design-system/components/text-input';
 import { colors, space } from '@/design-system/theme';
@@ -24,11 +27,21 @@ import { colors, space } from '@/design-system/theme';
  * Google Cloud OAuth credentials and a registered signing fingerprint, which
  * is real setup for a way in that the emailed code already covers. Dropping
  * both rather than only Apple also keeps the App Store's third party sign in
- * rule from applying at all. AC-3 is owed an amendment in the spec.
+ * rule from applying at all.
  */
 
 /** Six digits, so the field can be sized and the keyboard chosen for it. */
 const CODE_LENGTH = 6;
+
+/**
+ * What signing up actually costs, said before it is asked for. Somebody
+ * deciding whether to hand over an email deserves to know what happens next.
+ */
+const WHAT_HAPPENS_NEXT = [
+  'Eight quick questions. Under a minute.',
+  'You get a daily number you can change.',
+  'Point your camera at lunch. That’s it.',
+] as const;
 
 export default function SignInScreen() {
   const flow = useSignInOrUp();
@@ -40,15 +53,17 @@ export default function SignInScreen() {
 
   const busy = flow.busy;
   const error = flow.error;
+  const onEmailStep = flow.step.kind === 'email';
 
   return (
     <Screen testID="sign-in-screen">
       <View style={styles.header}>
+        <AppMark />
         <AppText variant="h1" heading align="center">
-          CalSnap
+          Let’s get you in the game
         </AppText>
-        <AppText variant="body" color={colors.textSubtle} align="center">
-          Snap a meal, see what is left of your day.
+        <AppText variant="body" color={colors.textMuted} align="center">
+          One email. No password to forget, ever. We send a six digit code and you’re off.
         </AppText>
       </View>
 
@@ -99,8 +114,8 @@ export default function SignInScreen() {
 
       {flow.step.kind === 'email' ? (
         <View style={styles.form}>
-          <Field label="Email address" required>
-            {(a11y) => (
+          <Field label="Email" required>
+            {(control) => (
               <TextInput
                 value={email}
                 onChangeText={setEmail}
@@ -111,13 +126,14 @@ export default function SignInScreen() {
                 autoComplete="email"
                 editable={!busy}
                 testID="sign-in-email"
-                {...a11y}
+                {...control}
               />
             )}
           </Field>
           <Button
-            label={busy ? 'One moment' : 'Continue'}
+            label={busy ? 'One moment' : 'Send my code'}
             size="block"
+            fullWidth
             onPress={() => void flow.submitEmail(email)}
             disabled={busy}
             accessibilityHint="Continues with this email address, whether or not you already have an account"
@@ -128,11 +144,11 @@ export default function SignInScreen() {
 
       {flow.step.kind === 'password' ? (
         <View style={styles.form}>
-          <AppText variant="caption" color={colors.textSubtle}>
+          <AppText variant="caption" color={colors.textMuted}>
             {`Signing in as ${flow.step.email}`}
           </AppText>
           <Field label="Password" required>
-            {(a11y) => (
+            {(control) => (
               <TextInput
                 value={password}
                 onChangeText={setPassword}
@@ -141,13 +157,14 @@ export default function SignInScreen() {
                 autoComplete="current-password"
                 editable={!busy}
                 testID="sign-in-password"
-                {...a11y}
+                {...control}
               />
             )}
           </Field>
           <Button
             label={busy ? 'One moment' : 'Sign in'}
             size="block"
+            fullWidth
             onPress={() => void flow.submitPassword(password)}
             disabled={busy}
             testID="sign-in-submit-password"
@@ -172,11 +189,11 @@ export default function SignInScreen() {
 
       {flow.step.kind === 'code' ? (
         <View style={styles.form}>
-          <AppText variant="caption" color={colors.textSubtle}>
+          <AppText variant="caption" color={colors.textMuted}>
             {`We sent a ${CODE_LENGTH} digit code to ${flow.step.email}.`}
           </AppText>
           <Field label="Code" required>
-            {(a11y) => (
+            {(control) => (
               <TextInput
                 value={code}
                 onChangeText={setCode}
@@ -187,13 +204,14 @@ export default function SignInScreen() {
                 maxLength={CODE_LENGTH}
                 editable={!busy}
                 testID="sign-in-code"
-                {...a11y}
+                {...control}
               />
             )}
           </Field>
           <Button
             label={busy ? 'One moment' : 'Continue'}
             size="block"
+            fullWidth
             onPress={() => void flow.submitCode(code)}
             disabled={busy}
             testID="sign-in-submit-code"
@@ -213,6 +231,22 @@ export default function SignInScreen() {
         </View>
       ) : undefined}
 
+      {/* Only on the way in. Once a code has been sent, what happens next is
+          the code, and this list would be answering a question nobody is
+          still asking. */}
+      {onEmailStep ? (
+        <>
+          <Divider label="What happens next" />
+          <NumberedList items={WHAT_HAPPENS_NEXT} />
+        </>
+      ) : undefined}
+
+      <View style={styles.footer}>
+        <AppText variant="caption" color={colors.textDim} align="center">
+          Your diary lives on your phone and in your account. Nowhere else.
+        </AppText>
+      </View>
+
       {/* Clerk's bot protection attaches here. Draws nothing (AC-1). */}
       <CaptchaMount />
     </Screen>
@@ -221,10 +255,15 @@ export default function SignInScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    gap: space[1],
-    paddingVertical: space[6],
+    alignItems: 'center',
+    gap: space[3],
+    paddingTop: space[6],
+    paddingBottom: space[4],
   },
   form: {
     gap: space[3],
+  },
+  footer: {
+    paddingTop: space[4],
   },
 });

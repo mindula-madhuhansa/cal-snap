@@ -3,7 +3,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { colors, type } from '../theme';
 
 /**
- * The app's marks (spec 0003, AC-5, AC-14).
+ * The app's marks.
  *
  * Feather, behind a closed union. This is the only file that imports the icon
  * set, so the drawing style stays one decision rather than fifteen, and a
@@ -22,12 +22,20 @@ const glyphs = {
   close: 'x',
   back: 'chevron-left',
   forward: 'chevron-right',
+  expand: 'chevron-down',
   retry: 'refresh-cw',
   edit: 'edit-2',
   remove: 'trash-2',
   settings: 'settings',
   alert: 'alert-circle',
   info: 'info',
+  today: 'sun',
+  history: 'bar-chart-2',
+  account: 'user',
+  mail: 'mail',
+  shield: 'shield',
+  signOut: 'log-out',
+  target: 'crosshair',
 } as const;
 
 export type IconName = keyof typeof glyphs;
@@ -35,8 +43,8 @@ export type IconName = keyof typeof glyphs;
 /** Icon sizes, taken from the type scale so a mark matches the text beside it. */
 const sizes = {
   sm: type.label.fontSize,
-  md: type.h5.fontSize,
-  lg: type.h4.fontSize,
+  md: type.h4.fontSize,
+  lg: type.h3.fontSize,
 } as const;
 
 export type IconSize = keyof typeof sizes;

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   StyleSheet,
   TextInput as RNTextInput,
@@ -8,25 +7,36 @@ import {
 } from 'react-native';
 
 import { scaleTypeStep } from '../scale-type-step';
-import { colors, minTouchTarget, radii, space, type } from '../theme';
+import { colors, minTouchTarget, space, type } from '../theme';
 
 /**
- * A text input (spec 0003, AC-3, AC-5, AC-12).
+ * A text input.
  *
- * Spread a `Field`'s accessibility props onto it and the label, the hint, and
- * any error come with them.
+ * Spread a `Field`'s control props onto it and the label, the hint, any error,
+ * and the focus ring come with them.
+ *
+ * **It draws no border of its own.** In this design the label sits inside the
+ * input's rounded frame, so the frame belongs to `Field`, which is the thing
+ * that knows about the label. This component is the editable line inside it.
  */
 
 export type TextInputProps = {
   readonly value: string;
   readonly onChangeText: (value: string) => void;
   readonly placeholder?: string;
+  /**
+   * Accepted so a `Field`'s control props spread cleanly, and deliberately not
+   * read: the frame is what turns red, and `Field` owns the frame.
+   */
   readonly invalid?: boolean;
   readonly multiline?: boolean;
   readonly keyboardType?: KeyboardTypeOptions;
   readonly editable?: boolean;
   readonly accessibilityLabel: string;
   readonly accessibilityHint?: string;
+  /** Handed down by `Field`, so the frame around this input can light up. */
+  readonly onFocus?: () => void;
+  readonly onBlur?: () => void;
   readonly testID?: string;
   /** Masks the text, for a password (spec 0004, AC-16). */
   readonly secureTextEntry?: boolean;
@@ -43,19 +53,20 @@ export type TextInputProps = {
   readonly autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 };
 
-/** `textarea.input { min-height: 90px }`, snapped to the space scale. */
-const MULTILINE_HEIGHT = space[8] * 2.5;
+/** A multiline box, snapped to the space scale. */
+const MULTILINE_HEIGHT = space[8] * 3;
 
 export const TextInput = ({
   value,
   onChangeText,
   placeholder,
-  invalid = false,
   multiline = false,
   keyboardType,
   editable = true,
   accessibilityLabel,
   accessibilityHint,
+  onFocus,
+  onBlur,
   testID,
   secureTextEntry = false,
   textContentType,
@@ -64,25 +75,15 @@ export const TextInput = ({
   autoCapitalize,
 }: TextInputProps) => {
   const { fontScale } = useWindowDimensions();
-  const [focused, setFocused] = useState(false);
-
-  // Resting gold rather than the CSS's `divider`: a control's visible boundary
-  // owes 3:1, and `divider` is 1.38. Focus deepens it instead of switching it
-  // on, so nothing about the layout moves when the keyboard opens.
-  const border = invalid
-    ? colors.intents.failure.mark
-    : focused
-      ? colors.accentText
-      : colors.accent;
 
   return (
     <RNTextInput
       value={value}
       onChangeText={onChangeText}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+      onFocus={onFocus}
+      onBlur={onBlur}
       placeholder={placeholder}
-      placeholderTextColor={colors.textSubtle}
+      placeholderTextColor={colors.textDim}
       multiline={multiline}
       keyboardType={keyboardType}
       editable={editable}
@@ -91,8 +92,11 @@ export const TextInput = ({
       autoComplete={autoComplete}
       maxLength={maxLength}
       autoCapitalize={autoCapitalize}
-      selectionColor={colors.accent}
-      cursorColor={colors.accent}
+      selectionColor={colors.cyan}
+      cursorColor={colors.cyan}
+      // The design is dark, so the platform's own light keyboard would arrive
+      // as a white slab under a dark screen.
+      keyboardAppearance="dark"
       // Scaling happens once, in `scaleTypeStep`, like every other text in the
       // system.
       allowFontScaling={false}
@@ -100,10 +104,9 @@ export const TextInput = ({
       accessibilityHint={accessibilityHint}
       testID={testID}
       style={[
-        scaleTypeStep(type.body, fontScale),
+        scaleTypeStep(type.h4, fontScale),
         styles.input,
         multiline ? styles.multiline : undefined,
-        { borderColor: border },
       ]}
     />
   );
@@ -112,15 +115,12 @@ export const TextInput = ({
 const styles = StyleSheet.create({
   input: {
     width: '100%',
-    // Tall enough to hit without slop, which an input inside a scrolling form
-    // could not safely carry anyway.
-    minHeight: minTouchTarget,
-    paddingHorizontal: space[2],
-    paddingVertical: space[2],
+    // The frame around this is what a finger aims at, and `Field` pads it; this
+    // floor is what guarantees the pair clears the target size together.
+    minHeight: minTouchTarget - space[3],
+    padding: 0,
     color: colors.text,
     backgroundColor: 'transparent',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.md,
   },
   multiline: {
     minHeight: MULTILINE_HEIGHT,

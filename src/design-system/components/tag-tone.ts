@@ -1,16 +1,21 @@
 /**
- * Tone to colour pair, as a pure function (spec 0003, AC-16, AC-2).
+ * Tone to colour pair, as a pure function.
  *
- * The three filled tones set their 800 ramp step on their 100 step, which
- * measures 9.30:1 and clears the floor comfortably. The outline tone is the
- * one that needs watching: its border may be `accent`, because a border only
- * owes 3:1, but its text may not, because text owes 4.5:1 at this size. It
- * gets `accentText` instead.
+ * Every filled tone sets its own hue on a 12% wash of itself over the ground.
+ * Because the hue is the text and the wash is nearly transparent, the pair
+ * measures within a hair of that hue's ratio on the ground itself, which is
+ * 4.82:1 at the worst (violet on the raised surface) and clears the floor for
+ * the caption step a tag is set in.
+ *
+ * `outline` is the one to watch: it has no fill, so its border is doing the
+ * work of separating it from whatever is behind it. Its border is therefore
+ * `borderStrong` at minimum and a hue wherever the tone has one, never the
+ * decorative `border`.
  */
 
 import { colors } from '../theme';
 
-export type TagTone = 'accent' | 'accent2' | 'neutral' | 'outline';
+export type TagTone = 'accent' | 'accent2' | 'neutral' | 'outline' | 'success' | 'warning';
 
 export type TagToneStyle = {
   readonly background: string;
@@ -21,28 +26,16 @@ export type TagToneStyle = {
 export const tagToneStyle = (tone: TagTone): TagToneStyle => {
   switch (tone) {
     case 'accent':
-      return {
-        background: colors.accentRamp[100],
-        text: colors.accentRamp[800],
-        border: 'transparent',
-      };
+      return { background: colors.wash.cyan, text: colors.cyan, border: 'transparent' };
     case 'accent2':
-      return {
-        background: colors.accent2Ramp[100],
-        text: colors.accent2Ramp[800],
-        border: 'transparent',
-      };
+      return { background: colors.wash.violet, text: colors.violet, border: 'transparent' };
     case 'neutral':
-      return {
-        background: colors.neutral[100],
-        text: colors.neutral[800],
-        border: 'transparent',
-      };
+      return { background: colors.wash.neutral, text: colors.textMuted, border: 'transparent' };
+    case 'success':
+      return { background: colors.wash.green, text: colors.green, border: 'transparent' };
+    case 'warning':
+      return { background: colors.wash.amber, text: colors.amber, border: 'transparent' };
     case 'outline':
-      return {
-        background: 'transparent',
-        text: colors.accentText,
-        border: colors.accent,
-      };
+      return { background: 'transparent', text: colors.textMuted, border: colors.borderStrong };
   }
 };

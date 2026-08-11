@@ -42,6 +42,11 @@ transaction), `@/data/local/profile.ts` (changing an answer later),
   generic database error where a specific sentence belongs.
 - A health number is never presented as fact. The result uses `NumberText`'s `estimated` flag, which
   marks it in the figure and in what a screen reader says.
+- **A figure on screen is derived from the same constant the calculation uses, never typed beside
+  it.** The pace step shows the daily calorie change each pace implies, and it computes it from
+  `KCAL_PER_KG` and `DAYS_PER_WEEK`. That is why it reads −275, −550, −825 and −1100 rather than
+  the rounder −250/−500/−750 the design mock shows: the round figures would disagree with the
+  number on the very next screen.
 
 ## Gotchas
 
@@ -63,6 +68,12 @@ transaction), `@/data/local/profile.ts` (changing an answer later),
   one device leaves nothing behind.
 - The result screen computes its number with the same pure function the write path uses, so the
   number shown is the number stored. Do not recompute it a second way.
+- **`StepFrame`'s `title` is optional, and the result step passes none.** The design puts the
+  result's heading under the ring rather than above it, so `ResultStep` draws its own; a title in
+  `PROMPTS.result` would put a second heading above the ring.
+- The design draws a protein/carbohydrate/fat breakdown on the result screen. It is deliberately
+  **not** built: nothing in the app computes a macro split yet, and three invented figures on the
+  screen that introduces somebody to their daily target is exactly what the honesty rule forbids.
 - `CONSENT_VERSION` in `@/config/consent.ts` ships as a placeholder with placeholder copy. Scope
   feature 10 must replace the copy **and** bump the constant together, or people are recorded as
   having agreed to text that did not exist yet.

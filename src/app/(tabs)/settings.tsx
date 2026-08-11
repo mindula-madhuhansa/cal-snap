@@ -10,7 +10,7 @@ import { createSupabaseTransport } from '@/account/supabase-transport';
 import { asSqlDatabase } from '@/db/client';
 import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
-import { Divider } from '@/design-system/components/divider';
+import { Card } from '@/design-system/components/card';
 import { ListRow } from '@/design-system/components/list-row';
 import { Notice } from '@/design-system/components/notice';
 import { Screen } from '@/design-system/components/screen';
@@ -18,16 +18,17 @@ import { colors } from '@/design-system/theme';
 import { GoalSection } from '@/onboarding/goal-section';
 
 /**
- * Settings, which for now is the account (spec 0004, AC-11, AC-14).
+ * Settings, which for now is the goal and the account (spec 0004, AC-11,
+ * AC-14).
  *
- * The daily target (feature 6) and privacy and deletion (feature 10) arrive
- * later; until then this screen says so rather than showing controls that do
- * nothing.
+ * Privacy and deletion (feature 10) arrive later; until then this screen says
+ * so rather than showing controls that do nothing.
  */
 
 /** What will live here, listed so the screen reads as a plan rather than a gap. */
 const COMING = [
-  { key: 'privacy', title: 'Privacy, terms and deletion', subtitle: 'Arrives before release' },
+  { key: 'privacy', title: 'Privacy & terms', subtitle: 'Arrives before release' },
+  { key: 'delete', title: 'Delete my account', subtitle: 'Arrives before release' },
 ] as const;
 
 export default function SettingsScreen() {
@@ -103,13 +104,28 @@ export default function SettingsScreen() {
         Settings
       </AppText>
 
-      <AppText variant="kicker" color={colors.accentText} uppercase>
+      {/* Spec 0006, AC-12. Only once the account is ready, because it reads
+          the per account database file. */}
+      {account.kind === 'ready' ? (
+        <GoalSection db={account.db} userId={account.userId} />
+      ) : undefined}
+
+      <AppText variant="kicker" color={colors.cyan} uppercase heading>
         Account
       </AppText>
 
-      <View>
-        <ListRow title={email} subtitle="Signed in" last />
-      </View>
+      <Card flush>
+        <ListRow title={email} subtitle="Signed in" />
+        {COMING.map((row, index) => (
+          <ListRow
+            key={row.key}
+            title={row.title}
+            subtitle={row.subtitle}
+            destructive={row.key === 'delete'}
+            last={index === COMING.length - 1}
+          />
+        ))}
+      </Card>
 
       {/*
         AC-11, AC-12. The removal failed, so the diary is still on this phone
@@ -123,6 +139,7 @@ export default function SettingsScreen() {
       {pending === undefined ? (
         <Button
           label="Sign out"
+          variant="secondary"
           onPress={runSignOut(false)}
           disabled={busy || account.kind !== 'ready'}
           fullWidth
@@ -149,7 +166,7 @@ export default function SettingsScreen() {
           />
           <Button
             label="Sign out anyway"
-            variant="ghost"
+            variant="danger"
             onPress={runSignOut(true)}
             disabled={busy}
             fullWidth
@@ -159,30 +176,9 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      <Divider />
-
-      {/* Spec 0006, AC-12. Only once the account is ready, because it reads
-          the per account database file. */}
-      {account.kind === 'ready' ? (
-        <GoalSection db={account.db} userId={account.userId} />
-      ) : undefined}
-
-      <Divider />
-
-      <AppText variant="kicker" color={colors.accentText} uppercase>
-        Coming here
+      <AppText variant="caption" color={colors.textDim} align="center">
+        Signing out pushes anything unsaved, then clears the diary off this phone.
       </AppText>
-
-      <View>
-        {COMING.map((row, index) => (
-          <ListRow
-            key={row.key}
-            title={row.title}
-            subtitle={row.subtitle}
-            last={index === COMING.length - 1}
-          />
-        ))}
-      </View>
     </Screen>
   );
 }

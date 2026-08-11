@@ -1,22 +1,29 @@
+import { JetBrainsMono_400Regular, JetBrainsMono_700Bold } from '@expo-google-fonts/jetbrains-mono';
 import {
-  CormorantGaramond_400Regular,
-  CormorantGaramond_600SemiBold,
-} from '@expo-google-fonts/cormorant-garamond';
-import { Lora_400Regular, Lora_600SemiBold } from '@expo-google-fonts/lora';
+  Outfit_400Regular,
+  Outfit_500Medium,
+  Outfit_600SemiBold,
+  Outfit_700Bold,
+} from '@expo-google-fonts/outfit';
 import { useFonts } from 'expo-font';
 
 /**
- * The four cuts the Classical design uses, and no others. The design retired
- * bold: semibold is the ceiling for interface headings.
+ * The six cuts the design uses, and no others.
+ *
+ * Outfit carries every heading, number, and line of body copy; JetBrains Mono
+ * carries the uppercase micro labels and the dense data lines, where a fixed
+ * advance width is what makes a column of figures line up.
  *
  * Font loading is a side effect, so it lives here at the edge and every other
  * module reads family names from `theme.fonts`.
  */
 const appFonts = {
-  CormorantGaramond_400Regular,
-  CormorantGaramond_600SemiBold,
-  Lora_400Regular,
-  Lora_600SemiBold,
+  Outfit_400Regular,
+  Outfit_500Medium,
+  Outfit_600SemiBold,
+  Outfit_700Bold,
+  JetBrainsMono_400Regular,
+  JetBrainsMono_700Bold,
 } as const;
 
 export type FontLoadState =

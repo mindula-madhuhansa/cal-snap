@@ -1,11 +1,14 @@
 /**
  * Intent to colour pair (spec 0003, AC-2).
  *
- * The palette has one hue, so a state cannot be signalled by turning
- * something red. Each intent resolves to a pair instead: the colour the words
- * are set in, and the colour of the rule, border, or dot that sits beside
- * them. Both sides of every pair clear the contrast floor, so choosing an
+ * Each intent resolves to a pair: the colour the words are set in, and the
+ * colour of the rule, border, dot, or bar that sits beside them. Both sides of
+ * every pair clear 4.5:1 on every ground the design draws on, so choosing an
  * intent can never produce an unreadable screen.
+ *
+ * Colour alone never carries the meaning. Every intent is drawn with a rule or
+ * a mark as well as a hue, so the difference survives a person who cannot tell
+ * the two hues apart.
  */
 
 import { colors } from './theme';

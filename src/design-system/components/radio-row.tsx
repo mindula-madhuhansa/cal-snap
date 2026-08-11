@@ -4,43 +4,45 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { haptics } from '../haptics';
 import { colors, minTouchTarget, radii, space } from '../theme';
 import { AppText } from './app-text';
+import { Icon } from './icon';
 
 /**
- * One choice on its own line (spec 0003, AC-3, AC-5, AC-11, AC-12).
+ * One choice, drawn as a card.
  *
- * The design uses these for the longer onboarding questions, where a
- * segmented strip would squeeze the labels. The dot is drawn small, as
- * designed; the row around it is the target.
+ * The design uses these for the longer questions, where a segmented strip
+ * would squeeze the labels. Each option is its own bordered block: a mark on
+ * the left, the choice and its detail in the middle, and room at the end for a
+ * figure.
+ *
+ * The chosen one is signalled three ways at once, not by hue alone: a cyan
+ * edge, a tinted ground, and a tick in the mark. That is what keeps it legible
+ * to someone who cannot separate cyan from the border it replaces.
  */
-
-/**
- * `.radio .dot`. The canvas draws it at 15 across; the space scale is 4.6
- * apart, so it snaps to `space[3]` (13.8) rather than carrying a loose number,
- * and the filled centre is a step and a half inside that.
- */
-const DOT_SIZE = space[3];
-const DOT_FILL = space[1] * 1.5;
 
 export type RadioRowProps = {
   readonly label: string;
+  /** The detail line under the label. Set in the mono data step. */
+  readonly subtitle?: string;
   readonly selected: boolean;
   readonly onSelect: () => void;
   /** A figure or mark at the end of the row. */
   readonly trailing?: ReactNode;
   readonly accessibilityLabel: string;
   readonly accessibilityHint?: string;
-  readonly last?: boolean;
   readonly testID?: string;
 };
 
+/** The mark on the left: a ring, or a filled disc with a tick once chosen. */
+const MARK_SIZE = space[6];
+
 export const RadioRow = ({
   label,
+  subtitle,
   selected,
   onSelect,
   trailing,
   accessibilityLabel,
   accessibilityHint,
-  last = false,
   testID,
 }: RadioRowProps) => (
   <Pressable
@@ -57,13 +59,22 @@ export const RadioRow = ({
     testID={testID}
     style={({ pressed }) => [
       styles.row,
-      last ? undefined : styles.ruled,
-      pressed ? { backgroundColor: colors.pressed.neutral } : undefined,
+      selected ? styles.rowSelected : undefined,
+      pressed && !selected ? { backgroundColor: colors.pressed.surface } : undefined,
     ]}>
-    {/* A ring with a filled centre, which is what the CSS's inset shadow
-        draws. Two views, because React Native cannot put two rings on one. */}
-    <View style={styles.dot}>{selected ? <View style={styles.dotFill} /> : undefined}</View>
-    <AppText variant="bodySmall">{label}</AppText>
+    <View style={[styles.mark, selected ? styles.markSelected : undefined]}>
+      {selected ? <Icon name="check" size="sm" color={colors.textOnAccent} /> : undefined}
+    </View>
+
+    <View style={styles.text}>
+      <AppText variant="h5">{label}</AppText>
+      {subtitle === undefined ? undefined : (
+        <AppText variant="data" color={colors.textMuted}>
+          {subtitle}
+        </AppText>
+      )}
+    </View>
+
     {trailing === undefined ? undefined : <View style={styles.trailing}>{trailing}</View>}
   </Pressable>
 );
@@ -72,33 +83,39 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[2],
-    paddingVertical: space[3],
-    // The whole row is tappable and already clears the floor, so the small dot
-    // needs no hit slop of its own.
+    gap: space[3],
+    padding: space[3],
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    // A control's boundary owes 3:1, so never the decorative `border`.
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+    // The whole card is the target, so the small mark needs no hit slop.
     minHeight: minTouchTarget,
   },
-  ruled: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
+  rowSelected: {
+    borderColor: colors.cyan,
+    backgroundColor: colors.wash.cyan,
   },
-  dot: {
-    width: DOT_SIZE,
-    height: DOT_SIZE,
+  mark: {
+    width: MARK_SIZE,
+    height: MARK_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.full,
     borderWidth: StyleSheet.hairlineWidth,
-    // A control's boundary owes 3:1, which is exactly what `accent` gives.
-    borderColor: colors.accent,
+    borderColor: colors.borderStrong,
   },
-  dotFill: {
-    width: DOT_FILL,
-    height: DOT_FILL,
-    borderRadius: radii.full,
-    backgroundColor: colors.accent,
+  markSelected: {
+    borderColor: colors.cyan,
+    backgroundColor: colors.cyan,
+  },
+  text: {
+    flex: 1,
+    minWidth: 0,
+    gap: space[1],
   },
   trailing: {
-    marginLeft: 'auto',
+    alignItems: 'flex-end',
   },
 });

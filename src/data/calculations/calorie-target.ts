@@ -75,7 +75,8 @@ export const CALORIE_FLOORS: Readonly<Record<Sex, number>> = Object.freeze({
 /** Kilocalories in a kilogram of body mass, the conversion the pace uses. */
 export const KCAL_PER_KG = 7700;
 
-const DAYS_PER_WEEK = 7;
+/** Exported so a screen can show the daily change a weekly pace implies. */
+export const DAYS_PER_WEEK = 7;
 
 /** The sex constant of the Mifflin-St Jeor equation. */
 const SEX_CONSTANT: Readonly<Record<Sex, number>> = Object.freeze({ female: -161, male: 5 });

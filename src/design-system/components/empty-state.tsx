@@ -5,7 +5,7 @@ import { AppText } from './app-text';
 import { Button } from './button';
 
 /**
- * Nothing here yet (spec 0003, AC-5, AC-6).
+ * Nothing here yet.
  *
  * No illustration, no cheerful mascot. A heading and one honest line, so an
  * empty first day reads as intentional rather than as a screen that failed to
@@ -28,7 +28,7 @@ export const EmptyState = ({ title, body, action, testID }: EmptyStateProps) => 
     <AppText variant="h3" heading align="center">
       {title}
     </AppText>
-    <AppText variant="bodySmall" color={colors.textSubtle} align="center">
+    <AppText variant="bodySmall" color={colors.textMuted} align="center">
       {body}
     </AppText>
     {action === undefined ? undefined : (

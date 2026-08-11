@@ -93,7 +93,7 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={env.clerkPublishableKey} tokenCache={tokenCache}>
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
         <SafeAreaProvider>
-          <StatusBar style="dark" />
+          <StatusBar style="light" />
           <AccountProvider>
             {/* Sync sits inside the account so it can see the open file, and
                 outside the gate so a draining account keeps retrying while the

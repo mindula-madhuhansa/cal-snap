@@ -5,19 +5,23 @@ import { AppText } from './app-text';
 import { tagToneStyle, type TagTone } from './tag-tone';
 
 /**
- * A small label (spec 0003, AC-5, AC-6).
+ * A small label.
  *
  * Not tappable, by design. A tag says what something is; if it needs to do
  * something, it is a button.
+ *
+ * Set in the uppercase mono step, which is how the design draws every chip.
+ * That makes the visible text a poor thing to read aloud, so `accessibilityLabel`
+ * matters more here than on most components.
  */
 
 export type TagProps = {
   readonly label: string;
   readonly tone?: TagTone;
   /**
-   * Overrides what a screen reader says. The visible label is set tight for
-   * the design, so it can carry a separator or an abbreviation that reads
-   * badly aloud; this is where the spoken sentence goes instead.
+   * Overrides what a screen reader says. The visible label is uppercased and
+   * set tight, so it can carry a separator or an abbreviation that reads badly
+   * aloud; this is where the spoken sentence goes instead.
    */
   readonly accessibilityLabel?: string;
   readonly testID?: string;
@@ -38,7 +42,7 @@ export const Tag = ({ label, tone = 'neutral', accessibilityLabel, testID }: Tag
         },
       ]}
       testID={testID}>
-      <AppText variant="caption" color={resolved.text}>
+      <AppText variant="kicker" color={resolved.text} uppercase>
         {label}
       </AppText>
     </View>
@@ -47,9 +51,8 @@ export const Tag = ({ label, tone = 'neutral', accessibilityLabel, testID }: Tag
 
 const styles = StyleSheet.create({
   tag: {
-    // `.tag`: 3px by 10px padding, rounded to the nearest steps of the scale.
     alignSelf: 'flex-start',
-    paddingVertical: space[1],
+    paddingVertical: space[1] + space[1] / 2,
     paddingHorizontal: space[2],
     borderRadius: radii.tag,
     borderWidth: StyleSheet.hairlineWidth,

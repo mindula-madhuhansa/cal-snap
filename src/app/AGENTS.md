@@ -9,14 +9,14 @@ any screen renders.
 
 ## Key files
 
-| File                  | Owns                                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `_layout.tsx`         | Startup gating, the splash screen, providers, and the root stack                                                            |
-| `sign-in.tsx`         | The combined door: one email field, then a password or an emailed code                                                      |
-| `onboarding.tsx`      | First run setup: one route rendering one question at a time, driven by the stored draft step                                |
-| `(tabs)/_layout.tsx`  | The tab bar and its theming                                                                                                 |
-| `(tabs)/index.tsx`    | The Today tab, built from the design system with labelled sample data; the real one, reading a real day, is scope feature 9 |
-| `(tabs)/settings.tsx` | The Settings tab: the signed in email, "Your goal", and signing out                                                         |
+| File                  | Owns                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `_layout.tsx`         | Startup gating, the splash screen, providers, and the root stack                                                                           |
+| `sign-in.tsx`         | The combined door: one email field, then a password or an emailed code                                                                     |
+| `onboarding.tsx`      | First run setup: one route rendering one question at a time, driven by the stored draft step                                               |
+| `(tabs)/_layout.tsx`  | The tab bar and its theming                                                                                                                |
+| `(tabs)/index.tsx`    | The Today tab: the ring, the macro bars, and the day's list, on labelled sample data; the real one, reading a real day, is scope feature 9 |
+| `(tabs)/settings.tsx` | The Settings tab (titled "You" in the bar): "Your goal", the signed in email, and signing out                                              |
 
 ## Conventions
 
@@ -39,8 +39,8 @@ any screen renders.
 ## Gotchas
 
 - The JavaScript tab bar (`expo-router/js-tabs`) is used rather than the native one, because the
-  Classical design's bar is hairline and typographic and a native bar cannot be made to look like
-  it. Switching to native tabs would lose the design.
+  design's bar is a tinted pill under a mark on a dark ground and a native bar cannot be made to
+  look like it. Switching to native tabs would lose the design.
 - `_layout.tsx` imports `@/config/env` for its side effect. That import is what validates the
   environment at startup and throws loudly on a bad value, so do not remove it as unused.
 - The splash screen is held manually (`preventAutoHideAsync`, then `hideAsync` once fonts and the
@@ -63,10 +63,10 @@ any screen renders.
   not per screen with a local `useSafeAreaInsets` call. `Screen` applies the top inset as content
   padding rather than a margin, so content still scrolls under the status bar the way the design
   draws it.
-- The tab bar is typographic, not iconographic: `(tabs)/_layout.tsx` hands a custom `tabBar` prop
-  (`TabBar` from `@/design-system/components/tab-bar`) to `expo-router/js-tabs`, which draws a gold
-  hairline above the active tab's label. Adding a `Tabs.Screen` entry adds a tab with no relayout
-  work.
+- `(tabs)/_layout.tsx` hands a custom `tabBar` prop (`TabBar` from
+  `@/design-system/components/tab-bar`) to `expo-router/js-tabs`. Adding a `Tabs.Screen` entry adds
+  a tab with no relayout work, but **its mark has to be added to `marks` in `tab-bar.tsx`**, keyed
+  by the route's file name; a route with no entry there shows its label with no glyph above it.
 
 ## Agent skills
 

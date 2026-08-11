@@ -52,13 +52,13 @@ describe('scaleTypeStep', () => {
   // covers: AC-4
   it('stops growing at the cap', () => {
     expect(scaleTypeStep(type.h1, 1.6)).toEqual(scaleTypeStep(type.h1, 3));
-    expect(scaleTypeStep(type.h1, 1.6).fontSize).toBe(67.2);
+    expect(scaleTypeStep(type.h1, 1.6).fontSize).toBe(48);
   });
 
-  it('scales tracking with the size, because the source expressed it in em', () => {
+  it('scales tracking with the size, because the scale expresses it in em', () => {
     const scaled = scaleTypeStep(type.h1, 1.6);
 
-    expect(scaled.letterSpacing).toBe(-1.01);
+    expect(scaled.letterSpacing).toBe(-0.96);
   });
 
   it('leaves tracking off a step that has none', () => {
@@ -71,7 +71,9 @@ describe('scaleTypeStep', () => {
   });
 
   it('rounds to a hundredth, so floating point noise never reaches a style', () => {
-    // 42 * 1.6 is 67.19999999999999 in binary floating point.
-    expect(Number.isInteger(scaleTypeStep(type.h1, 1.6).fontSize * 100)).toBe(true);
+    // 56 * 1.6 is 89.60000000000001 in binary floating point, and -1.6 * 1.6
+    // is -2.5600000000000005. Both reach a style rounded.
+    expect(scaleTypeStep(type.display, 1.6).fontSize).toBe(89.6);
+    expect(scaleTypeStep(type.display, 1.6).letterSpacing).toBe(-2.56);
   });
 });

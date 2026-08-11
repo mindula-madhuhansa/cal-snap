@@ -4,7 +4,7 @@ import { scaleTypeStep } from '../scale-type-step';
 import { colors, space, type } from '../theme';
 
 /**
- * Every health number a person reads (spec 0003, AC-7, AC-8).
+ * Every health number a person reads.
  *
  * Two jobs beyond looking right. First, tabular figures: a calorie total that
  * ticks up must not shuffle sideways as its digits change. Second, honesty: an
@@ -12,8 +12,11 @@ import { colors, space, type } from '../theme';
  * the only way the system says it.
  */
 
-/** The heading steps a figure may be set at. Numbers always use the heading face. */
-export type NumberSize = 'h1' | 'h2' | 'h3' | 'h4' | 'h5';
+/** The steps a figure may be set at. Numbers always use the heading face. */
+export type NumberSize = 'display' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5';
+
+/** Where the unit sits relative to the figure. */
+export type NumberLayout = 'inline' | 'stacked';
 
 export type NumberTextProps = {
   /** The figure, already formatted for display. This component does no formatting. */
@@ -25,6 +28,11 @@ export type NumberTextProps = {
   /** Marks the figure as an estimate rather than a measured fact. */
   readonly estimated?: boolean;
   readonly size?: NumberSize;
+  /**
+   * `stacked` puts the unit under the figure as an uppercase mono label, which
+   * is how the design draws the one number a screen is built around.
+   */
+  readonly layout?: NumberLayout;
   readonly color?: string;
   readonly testID?: string;
 };
@@ -44,12 +52,13 @@ export const NumberText = ({
   spoken,
   estimated = false,
   size = 'h4',
+  layout = 'inline',
   color = colors.text,
   testID,
 }: NumberTextProps) => {
   const { fontScale } = useWindowDimensions();
   const figureStep = scaleTypeStep(type[size], fontScale);
-  const unitStep = scaleTypeStep(type.kicker, fontScale);
+  const unitStep = scaleTypeStep(layout === 'stacked' ? type.kicker : type.caption, fontScale);
 
   // Derived from what is on screen rather than passed in beside it, so the two
   // cannot drift apart as a screen is edited.
@@ -57,11 +66,17 @@ export const NumberText = ({
   const label = estimated ? `${base}, ${ESTIMATE_SPOKEN}` : base;
 
   return (
-    <View accessible accessibilityLabel={label} style={styles.row} testID={testID}>
+    <View
+      accessible
+      accessibilityLabel={label}
+      style={layout === 'stacked' ? styles.column : styles.row}
+      testID={testID}>
       <Text allowFontScaling={false} style={[figureStep, styles.figure, { color }]}>
         {estimated ? `${ESTIMATE_PREFIX}${value}` : value}
       </Text>
-      <Text allowFontScaling={false} style={[unitStep, styles.unit]}>
+      <Text
+        allowFontScaling={false}
+        style={[unitStep, styles.unit, layout === 'stacked' ? styles.unitStacked : undefined]}>
         {unit}
       </Text>
     </View>
@@ -74,12 +89,19 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     gap: space[1],
   },
+  column: {
+    alignItems: 'center',
+    gap: space[1],
+  },
   figure: {
     // A column of figures must not shift as its digits change.
     fontVariant: ['tabular-nums'],
   },
   unit: {
-    color: colors.textSubtle,
+    color: colors.textMuted,
+  },
+  unitStacked: {
+    color: colors.textDim,
     textTransform: 'uppercase',
   },
 });

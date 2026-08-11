@@ -1,17 +1,21 @@
 /**
- * Variant to style, as a pure function (spec 0003, AC-16).
+ * Variant to style, as a pure function.
  *
  * Kept out of the component so it can be tested without a phone, and so the
- * colour role rule is checkable in one place: a button's label is never
- * `accent` (3.02 against paper, below the 4.5 floor for small text) and its
- * border is never `divider` (1.38, below the 3 floor for a control's visible
- * boundary). Primary reads as gold because its border is gold; its words are
- * the deeper `accentText`.
+ * colour role rule is checkable in one place: a label is never set in a value
+ * below 4.5:1 on the ground it lands on, and a control's boundary is never
+ * `border` (1.25 on the ground), which is a decorative rule and not an edge a
+ * person can find.
+ *
+ * The primary action is the design's one gradient. It is signalled here with a
+ * flag rather than with a colour, because a gradient is not something a style
+ * object can hold; the component reads the flag and draws the stops from
+ * `gradients.brand`.
  */
 
 import { colors, radii, space } from '../theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 export type ButtonVariantStyle = {
   /** The label colour. */
@@ -20,48 +24,61 @@ export type ButtonVariantStyle = {
   readonly border: string;
   /** The background, which is where the pressed tint lands. */
   readonly background: string;
+  /** Whether the component should fill this button with the brand gradient. */
+  readonly gradient: boolean;
   readonly paddingHorizontal: number;
   readonly borderRadius: number;
 };
-
-/** `.btn` padding: `var(--space-2) calc(var(--space-3) * 1.2)`. */
-const HORIZONTAL_PADDING = Math.round(space[3] * 1.2 * 100) / 100;
 
 export const buttonVariantStyle = (
   variant: ButtonVariant,
   pressed: boolean,
 ): ButtonVariantStyle => {
-  const shared = { borderRadius: radii.md, paddingHorizontal: HORIZONTAL_PADDING } as const;
+  const shared = { borderRadius: radii.full, paddingHorizontal: space[6] } as const;
 
   switch (variant) {
     case 'primary':
       return {
         ...shared,
-        text: colors.accentText,
-        border: colors.accent,
-        background: pressed ? colors.pressed.accent : 'transparent',
+        // The ground itself, on cyan through violet. Worst point is the violet
+        // end at 5.88:1.
+        text: colors.textOnAccent,
+        border: 'transparent',
+        // Sits under the gradient, so it only shows while pressed, when the
+        // component drops the gradient's opacity.
+        background: 'transparent',
+        gradient: true,
       };
     case 'secondary':
       return {
         ...shared,
         text: colors.text,
-        // The CSS draws this in `divider`, which does not clear the 3:1 floor
-        // a control's boundary needs. `accent` is the value the role rule
-        // permits for a control border, and it keeps the hairline feel.
-        border: colors.accent,
-        background: pressed ? colors.pressed.neutral : 'transparent',
+        border: colors.borderStrong,
+        background: pressed ? colors.pressed.surface : colors.surface,
+        gradient: false,
       };
     case 'ghost':
       return {
         ...shared,
-        text: colors.accentText,
+        text: colors.cyan,
         border: 'transparent',
-        // `.btn-ghost` pulls its side padding in to `--space-1`.
-        paddingHorizontal: space[1],
         background: pressed ? colors.pressed.ghost : 'transparent',
+        gradient: false,
+        paddingHorizontal: space[3],
+      };
+    case 'danger':
+      return {
+        ...shared,
+        text: colors.red,
+        border: 'transparent',
+        background: pressed ? colors.wash.red : 'transparent',
+        gradient: false,
       };
   }
 };
 
-/** `.btn:disabled { opacity: 0.45 }`. */
-export const DISABLED_OPACITY = 0.45;
+/** How far a disabled button fades. */
+export const DISABLED_OPACITY = 0.4;
+
+/** How far the gradient fades while the primary action is held down. */
+export const PRESSED_GRADIENT_OPACITY = 0.75;

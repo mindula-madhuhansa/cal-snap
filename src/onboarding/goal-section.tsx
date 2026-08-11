@@ -18,6 +18,8 @@ import { deviceIdSource } from '@/data/ids/device';
 import { asSqlDatabase } from '@/db/client';
 import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
+import { Callout } from '@/design-system/components/callout';
+import { Card } from '@/design-system/components/card';
 import { Divider } from '@/design-system/components/divider';
 import { ListRow } from '@/design-system/components/list-row';
 import { LoadingState } from '@/design-system/components/loading-state';
@@ -205,31 +207,44 @@ export const GoalSection = ({ db, userId }: GoalSectionProps) => {
 
   return (
     <View style={styles.section} testID="goal-section">
-      <AppText variant="kicker" color={colors.accentText} uppercase>
+      <AppText variant="kicker" color={colors.cyan} uppercase heading>
         Your goal
       </AppText>
 
-      <View accessible accessibilityRole="summary" testID="goal-today">
-        <NumberText
-          value={String(target.calories)}
-          unit="cal a day"
-          estimated={target.source === 'computed'}
-          size="h2"
-        />
-        <AppText variant="caption" color={colors.textSubtle}>
-          {basisSentence(target.source)}
-        </AppText>
-      </View>
+      <Card>
+        <View style={styles.today}>
+          <View
+            accessible
+            accessibilityRole="summary"
+            style={styles.todayFigure}
+            testID="goal-today">
+            <NumberText
+              value={String(target.calories)}
+              unit={`kcal / day, ${basisSentence(target.source)}`}
+              estimated={target.source === 'computed'}
+              size="h1"
+              layout="stacked"
+            />
+          </View>
 
-      {confirmation === undefined ? undefined : (
-        <Notice message={confirmation} intent="notice" testID="goal-confirmation" />
-      )}
+          {/* The way in to changing it, beside the number it changes. */}
+          <Button
+            label={override === undefined ? 'Change' : 'Edit'}
+            variant="secondary"
+            disabled={busy}
+            onPress={() => {
+              setDraft(override?.calories ?? target.calories);
+              setEditing(true);
+            }}
+            accessibilityHint="Lets you set a daily calorie target of your own, starting tomorrow"
+            testID="goal-override-open"
+          />
+        </View>
 
-      <Divider />
+        <Divider />
 
-      <View>
         <ListRow
-          title="Goal"
+          title="Pace"
           subtitle={goalSummary(profile.goalDirection, profile.goalRateKgPerWeek)}
         />
         <ListRow title="Activity" subtitle={profile.activityLevel.replace(/_/g, ' ')} />
@@ -239,7 +254,21 @@ export const GoalSection = ({ db, userId }: GoalSectionProps) => {
           subtitle={heightSummary(profile.heightCm, profile.unitPreference)}
           last
         />
-      </View>
+      </Card>
+
+      {confirmation === undefined ? undefined : (
+        <Notice message={confirmation} intent="success" testID="goal-confirmation" />
+      )}
+
+      {/*
+        The promise this whole section rests on, said before anything is
+        pressed rather than only after. A day's target is read once, when its
+        row is first created, so a change genuinely cannot reach today.
+      */}
+      <Callout
+        message="Change anything here and the new number starts"
+        emphasis={`${startsOn(today)}. Today stays exactly as it is.`}
+      />
 
       {/*
         The single question edit paths AC-12 asks for. Each one changes one
@@ -269,7 +298,7 @@ export const GoalSection = ({ db, userId }: GoalSectionProps) => {
 
       {editing ? (
         <View style={styles.stack}>
-          <AppText variant="body" color={colors.textSubtle}>
+          <AppText variant="bodySmall" color={colors.textMuted}>
             {startsTomorrowSentence(today)}
           </AppText>
           <Stepper
@@ -298,37 +327,22 @@ export const GoalSection = ({ db, userId }: GoalSectionProps) => {
             onPress={() => setEditing(false)}
           />
         </View>
-      ) : (
-        <View style={styles.stack}>
-          <Button
-            label={override === undefined ? 'Set my own target' : 'Change my target'}
-            variant="ghost"
-            disabled={busy}
-            fullWidth
-            onPress={() => {
-              setDraft(override?.calories ?? target.calories);
-              setEditing(true);
-            }}
-            accessibilityHint="Lets you type a daily calorie target of your own, starting tomorrow"
-            testID="goal-override-open"
-          />
-
-          {override === undefined ? undefined : (
-            <Button
-              label="Go back to the worked out number"
-              variant="ghost"
-              disabled={busy}
-              fullWidth
-              onPress={removeOverride}
-              accessibilityHint="Clears the number you set, so later days go back to being worked out from your answers"
-              testID="goal-override-clear"
-            />
-          )}
-        </View>
+      ) : override === undefined ? undefined : (
+        // The way in to setting a number lives on the card, beside the number.
+        // The only thing left down here is the way back out of one.
+        <Button
+          label="Go back to the worked out number"
+          variant="ghost"
+          disabled={busy}
+          fullWidth
+          onPress={removeOverride}
+          accessibilityHint="Clears the number you set, so later days go back to being worked out from your answers"
+          testID="goal-override-clear"
+        />
       )}
 
       {/* Weight lives with the weigh in feature; this only says which unit is in use. */}
-      <AppText variant="caption" color={colors.textSubtle}>
+      <AppText variant="caption" color={colors.textDim}>
         {`Shown in ${weight.unit === 'kg' ? 'kilograms and centimetres' : 'pounds and feet'}.`}
       </AppText>
     </View>
@@ -345,6 +359,13 @@ const nextLevelDown = (level: Level): Level =>
 
 const styles = StyleSheet.create({
   section: { gap: space[3] },
+  today: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space[3],
+  },
+  todayFigure: { flexShrink: 1 },
   stack: { gap: space[2] },
   row: { flexDirection: 'row', gap: space[2], flexWrap: 'wrap' },
 });

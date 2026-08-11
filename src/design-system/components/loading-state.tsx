@@ -11,15 +11,15 @@ import Animated, {
 
 import { motionDuration } from '../motion-duration';
 import { useReducedMotion } from '../use-reduced-motion';
-import { colors, motion, space } from '../theme';
+import { colors, motion, radii, space } from '../theme';
 import { AppText } from './app-text';
 
 /**
- * Waiting (spec 0003, AC-5, AC-6, AC-9).
+ * Waiting.
  *
- * A short gold line that breathes under one honest sentence, matching the
- * canvas's "reading your day". No spinner: a spinner says nothing about what
- * is happening, and this app is asking a model about somebody's dinner.
+ * A short cyan line that breathes under one honest sentence. No spinner: a
+ * spinner says nothing about what is happening, and this app is asking a model
+ * about somebody's dinner.
  *
  * With reduce motion on, the line simply sits there at full strength. It is
  * still visibly a waiting state, it just does not move.
@@ -72,7 +72,7 @@ export const LoadingState = ({ message, testID }: LoadingStateProps) => {
       style={styles.state}
       testID={testID}>
       <Animated.View style={[styles.line, pulse]} />
-      <AppText variant="bodySmall" color={colors.textSubtle} align="center">
+      <AppText variant="bodySmall" color={colors.textMuted} align="center">
         {message}
       </AppText>
     </View>
@@ -87,7 +87,8 @@ const styles = StyleSheet.create({
   },
   line: {
     width: space[8] * 2,
-    height: StyleSheet.hairlineWidth * 2,
-    backgroundColor: colors.accent,
+    height: space[1] / 2,
+    borderRadius: radii.full,
+    backgroundColor: colors.cyan,
   },
 });

@@ -3,47 +3,75 @@ import { describe, expect, it } from 'vitest';
 import { colors } from '../theme';
 import { tagToneStyle, type TagTone } from './tag-tone';
 
-const ALL_TONES: readonly TagTone[] = ['accent', 'accent2', 'neutral', 'outline'];
+const ALL_TONES: readonly TagTone[] = [
+  'accent',
+  'accent2',
+  'neutral',
+  'outline',
+  'success',
+  'warning',
+];
+
+const FILLED_TONES: readonly TagTone[] = ['accent', 'accent2', 'neutral', 'success', 'warning'];
 
 describe('tagToneStyle', () => {
-  // covers: AC-2. A tag is 11 point, which is well under the 24 point line, so
-  // it owes the full 4.5:1 and the brighter gold cannot carry it.
-  it('never sets tag text in the brighter gold', () => {
+  // A tag is set in the 10 point mono step, which is well under the 20 point
+  // line, so it owes the full 4.5:1 and `textDim` (3.83) cannot carry it.
+  it('never sets tag text in the value that misses the small-text floor', () => {
     for (const tone of ALL_TONES) {
-      expect(tagToneStyle(tone).text).not.toBe(colors.accent);
+      expect(tagToneStyle(tone).text).not.toBe(colors.textDim);
     }
   });
 
-  // covers: AC-2. The filled tones pair the 800 step on the 100 step, which
-  // measures 9.30:1.
-  it('pairs the filled tones on one shared step of their ramps', () => {
+  it('gives every tone all three parts of its style', () => {
+    for (const tone of ALL_TONES) {
+      const style = tagToneStyle(tone);
+
+      expect(style.background.length).toBeGreaterThan(0);
+      expect(style.text.length).toBeGreaterThan(0);
+      expect(style.border.length).toBeGreaterThan(0);
+    }
+  });
+
+  // Each filled tone sets its own hue on a wash of that same hue. Because the
+  // wash is nearly transparent, the pair measures within a hair of the hue's
+  // ratio on the ground itself, which is 4.82:1 at worst.
+  it('pairs each filled tone’s words with a wash of the same hue', () => {
     expect(tagToneStyle('accent')).toMatchObject({
-      background: colors.accentRamp[100],
-      text: colors.accentRamp[800],
+      background: colors.wash.cyan,
+      text: colors.cyan,
     });
     expect(tagToneStyle('accent2')).toMatchObject({
-      background: colors.accent2Ramp[100],
-      text: colors.accent2Ramp[800],
+      background: colors.wash.violet,
+      text: colors.violet,
+    });
+    expect(tagToneStyle('success')).toMatchObject({
+      background: colors.wash.green,
+      text: colors.green,
+    });
+    expect(tagToneStyle('warning')).toMatchObject({
+      background: colors.wash.amber,
+      text: colors.amber,
     });
     expect(tagToneStyle('neutral')).toMatchObject({
-      background: colors.neutral[100],
-      text: colors.neutral[800],
+      background: colors.wash.neutral,
+      text: colors.textMuted,
     });
   });
 
-  // covers: AC-2. The one tone where a border and its text take different
-  // golds, because a border owes 3:1 and text owes 4.5:1.
-  it('borders the outline tone in gold and sets its words in the deeper gold', () => {
+  // The outline tone has no fill, so its border is the only thing separating
+  // it from whatever is behind it. It may never be the decorative rule colour.
+  it('bounds the outline tone in the strong edge, never the decorative one', () => {
     expect(tagToneStyle('outline')).toEqual({
       background: 'transparent',
-      text: colors.accentText,
-      border: colors.accent,
+      text: colors.textMuted,
+      border: colors.borderStrong,
     });
   });
 
-  it('leaves the filled tones unbordered', () => {
-    expect(tagToneStyle('accent').border).toBe('transparent');
-    expect(tagToneStyle('accent2').border).toBe('transparent');
-    expect(tagToneStyle('neutral').border).toBe('transparent');
+  it('leaves every filled tone unbordered', () => {
+    for (const tone of FILLED_TONES) {
+      expect(tagToneStyle(tone).border).toBe('transparent');
+    }
   });
 });

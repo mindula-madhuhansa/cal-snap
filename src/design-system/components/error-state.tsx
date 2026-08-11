@@ -1,16 +1,17 @@
 import { StyleSheet, View } from 'react-native';
 
-import { colors, space } from '../theme';
+import { colors, radii, space } from '../theme';
 import { AppText } from './app-text';
 import { Button } from './button';
 
 /**
- * Something went wrong (spec 0003, AC-5, AC-6).
+ * Something went wrong.
  *
- * There is no red in this palette, so the fault is carried by plain words and
- * a rule rather than by a colour. That is not a compromise: `AGENTS.md` asks
- * that every failure a person can hit says something honest on screen, and a
- * red border has never told anybody what happened or what to do next.
+ * The fault is carried by the words first and the colour second: a heading
+ * that names what happened, a line saying what to do about it, and a red edge
+ * beside them. `AGENTS.md` asks that every failure a person can hit says
+ * something honest on screen, and a red border has never told anybody what
+ * happened or what to do next.
  */
 
 export type ErrorStateProps = {
@@ -30,7 +31,7 @@ export const ErrorState = ({ title, body, onRetry, retryLabel, testID }: ErrorSt
       <AppText variant="h4" heading color={failure.text}>
         {title}
       </AppText>
-      <AppText variant="bodySmall" color={colors.textSubtle}>
+      <AppText variant="bodySmall" color={colors.textMuted}>
         {body}
       </AppText>
       {onRetry === undefined || retryLabel === undefined ? undefined : (
@@ -44,8 +45,9 @@ const styles = StyleSheet.create({
   state: {
     alignItems: 'flex-start',
     gap: space[2],
-    paddingVertical: space[3],
-    paddingLeft: space[3],
-    borderLeftWidth: StyleSheet.hairlineWidth,
+    padding: space[4],
+    borderRadius: radii.md,
+    backgroundColor: colors.wash.red,
+    borderLeftWidth: space[1] / 2,
   },
 });

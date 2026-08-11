@@ -1,20 +1,34 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { colors, minTouchTarget, space } from '../theme';
+import { colors, minTouchTarget, radii, space } from '../theme';
 import { AppText } from './app-text';
+import { Icon, type IconName } from './icon';
 
 /**
- * The tab bar (spec 0003, AC-10).
+ * The tab bar.
  *
- * Typographic rather than iconographic: the design marks the current tab with
- * a gold hairline above its label, not with a filled glyph. Every tab takes an
- * equal share of the width, so a fourth one costs nothing to add.
+ * A mark over an uppercase mono label, with the current tab lit in cyan on a
+ * tinted pill. Every tab takes an equal share of the width, so a third and a
+ * fourth cost nothing to add.
+ *
+ * The current tab is signalled by the pill and by the mark's weight as well as
+ * by colour, and the platform is told which one is selected, so the state does
+ * not rest on hue alone.
  *
  * It lives here rather than in the route file because `src/app/**` is not
  * allowed to import React Native's `Text` or `Pressable` directly; the route
  * file hands this component to the navigator instead.
  */
+
+/**
+ * The mark for each route, by file name. A route with no entry here shows its
+ * label alone rather than a wrong glyph.
+ */
+const marks: Readonly<Record<string, IconName>> = {
+  index: 'today',
+  settings: 'account',
+};
 
 export const TabBar = ({ state, descriptors, navigation, insets }: BottomTabBarProps) => (
   <View style={[styles.bar, { paddingBottom: insets.bottom + space[2] }]}>
@@ -22,6 +36,7 @@ export const TabBar = ({ state, descriptors, navigation, insets }: BottomTabBarP
       const descriptor = descriptors[route.key];
       const focused = state.index === index;
       const label = descriptor?.options.title ?? route.name;
+      const mark = marks[route.name];
 
       const onPress = () => {
         const event = navigation.emit({
@@ -43,10 +58,12 @@ export const TabBar = ({ state, descriptors, navigation, insets }: BottomTabBarP
           accessibilityState={{ selected: focused }}
           accessibilityLabel={label}
           style={styles.tab}>
-          {/* The mark for the current tab. Always rendered, so switching tabs
-              never changes the height of the bar. */}
-          <View style={[styles.rule, focused ? styles.ruleActive : undefined]} />
-          <AppText variant="h5" color={focused ? colors.accentText : colors.textSubtle}>
+          <View style={[styles.pill, focused ? styles.pillActive : undefined]}>
+            {mark === undefined ? undefined : (
+              <Icon name={mark} size="md" color={focused ? colors.cyan : colors.textDim} />
+            )}
+          </View>
+          <AppText variant="kicker" uppercase color={focused ? colors.cyan : colors.textDim}>
             {label}
           </AppText>
         </Pressable>
@@ -62,7 +79,7 @@ const styles = StyleSheet.create({
     paddingTop: space[2],
     paddingHorizontal: space[3],
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.divider,
+    borderTopColor: colors.border,
     backgroundColor: colors.bg,
   },
   tab: {
@@ -75,12 +92,13 @@ const styles = StyleSheet.create({
     minHeight: minTouchTarget,
     paddingTop: space[1],
   },
-  rule: {
-    height: StyleSheet.hairlineWidth,
-    width: space[8],
+  pill: {
+    paddingVertical: space[1],
+    paddingHorizontal: space[4],
+    borderRadius: radii.full,
     backgroundColor: 'transparent',
   },
-  ruleActive: {
-    backgroundColor: colors.accent,
+  pillActive: {
+    backgroundColor: colors.wash.cyan,
   },
 });

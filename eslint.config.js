@@ -99,7 +99,7 @@ module.exports = defineConfig([
             'No raw hex colours outside src/design-system/theme.ts. Import the token instead.',
         },
         {
-          selector: 'Literal[value=/(?:Cormorant|Lora)/]',
+          selector: 'Literal[value=/(?:Outfit|JetBrainsMono)/]',
           message:
             'No font family strings outside src/design-system/theme.ts. Use theme.fonts or a type step.',
         },

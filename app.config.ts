@@ -24,15 +24,15 @@ const extra = {
 } as const;
 
 /**
- * The paper ground, written out rather than read from `src/design-system/theme.ts`.
+ * The ground, written out rather than read from `src/design-system/theme.ts`.
  *
  * This is the one place in the repo allowed a raw hex, and it is not a choice:
  * Expo transpiles this file and requires the result before Metro or the
  * TypeScript path aliases exist, so an import of the theme cannot resolve. It
- * is the splash and icon ground, so it has to match `colors.bg`. If the paper
+ * is the splash and icon ground, so it has to match `colors.bg`. If the ground
  * is ever retuned, this line changes with it.
  */
-const PAPER = '#f3f2f2';
+const GROUND = '#0a0c14';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -46,9 +46,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   scheme: 'calsnap',
   icon: './assets/images/icon.png',
-  // The Classical design is a single warm paper theme, with no dark variant.
-  userInterfaceStyle: 'light',
-  backgroundColor: PAPER,
+  // The design is a single dark theme, with no light variant. Pinning this
+  // stops the OS drawing light chrome (keyboards, sheets, the status bar)
+  // around screens that are always dark.
+  userInterfaceStyle: 'dark',
+  backgroundColor: GROUND,
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.calsnap.app',
@@ -56,7 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: 'com.calsnap.app',
     adaptiveIcon: {
-      backgroundColor: PAPER,
+      backgroundColor: GROUND,
       foregroundImage: './assets/images/android-icon-foreground.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
@@ -77,7 +79,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-splash-screen',
       {
-        backgroundColor: PAPER,
+        backgroundColor: GROUND,
         image: './assets/images/splash-icon.png',
         imageWidth: 96,
       },

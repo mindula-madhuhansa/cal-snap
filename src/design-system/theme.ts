@@ -1,14 +1,16 @@
 /**
- * Classical theme tokens, ported from `docs/design/classical.css`.
+ * The Nocturne theme, ported from the design in `docs/design/`.
  *
- * This module owns the raw tokens only. The components built from them are
- * scope feature 4 (Design system & UI foundation), not this one.
+ * This module owns the raw tokens only. Every colour, space, radius, font,
+ * type step, motion duration, gradient, and shadow the app uses is defined
+ * here once, so no screen ever invents a number.
  *
- * CSS `color-mix(in srgb, X n%, transparent)` has no React Native equivalent,
- * so those tokens are resolved here to the `rgba()` they produce.
+ * The design is **dark only**. It is one ground, not a light theme with a dark
+ * variant, so there is no colour-scheme branch anywhere and `app.config.ts`
+ * pins `userInterfaceStyle` to `dark`.
  */
 
-/** `color-mix(in srgb, <hex> <percent>%, transparent)` resolved to `rgba()`. */
+/** A hex plus an alpha percentage, resolved to the `rgba()` React Native wants. */
 const withAlpha = (hex: string, percent: number): string => {
   const value = hex.replace('#', '');
   const red = Number.parseInt(value.slice(0, 2), 16);
@@ -17,161 +19,212 @@ const withAlpha = (hex: string, percent: number): string => {
   return `rgba(${red}, ${green}, ${blue}, ${percent / 100})`;
 };
 
-const ink = '#201f1d';
-const shadowInk = '#2d2b2b';
-const accent = '#b68235';
+/** The ground, and the two surfaces that sit on it. */
+const ground = '#0a0c14';
+const surface = '#161926';
+const surfaceRaised = '#1d2130';
 
-const textMuted = withAlpha(ink, 55);
-const textSubtle = withAlpha(ink, 70);
-
-const neutral = {
-  100: '#f8f4f4',
-  200: '#eae7e7',
-  300: '#d7d3d3',
-  400: '#bab6b6',
-  500: '#9b9797',
-  600: '#7d7979',
-  700: '#605d5d',
-  800: '#444141',
-  900: '#2d2b2b',
-} as const;
-
-const accentRamp = {
-  100: '#fff3e4',
-  200: '#ffe3bf',
-  300: '#facb8d',
-  400: '#e1ad66',
-  500: '#c28d41',
-  600: '#a06f24',
-  700: '#7d5411',
-  800: '#5a3b0a',
-  900: '#3a270d',
-} as const;
-
-const accent2Ramp = {
-  100: '#fff3e4',
-  200: '#ffe3be',
-  300: '#f5cd96',
-  400: '#dbaf70',
-  500: '#bc8f4e',
-  600: '#9b7232',
-  700: '#79561f',
-  800: '#573d14',
-  900: '#382810',
-} as const;
+/** The paper of this design: near white, never pure white. */
+const paper = '#f4f6fb';
 
 /**
- * The colour role rule (spec 0003, AC-2). The palette is kept exactly as the
- * design drew it; what is new is where each value is allowed to appear. Every
- * ratio below is measured against the paper ground `#f3f2f2`.
+ * The brand pair. Every gradient in the design runs cyan to violet, left to
+ * right or top to bottom, and nothing else is ever the accent.
+ */
+const cyan = '#5fdcd0';
+const violet = '#8f7bf5';
+
+/**
+ * The state hues. Unlike the theme this replaced, this design does carry
+ * meaning in colour, so each one is paired with a text-safe cut: the bright
+ * value is for marks, rules, bars and rings, the `…Text` value for words.
  *
- * | Value                              | Ratio | Permitted on                                                          |
- * | ---------------------------------- | ----- | --------------------------------------------------------------------- |
- * | `text` ink `#201f1d`               | 14.74 | anything                                                              |
- * | `accentText` `#7d5411`             |  5.97 | anything, including the 10 point kickers                              |
- * | `textSubtle` (ink 70%)             |  5.79 | anything                                                              |
- * | `textMuted` (ink 55%)              |  3.63 | text at 24 points or above only (`h1`, `h2`, `h3`)                    |
- * | `accent` `#b68235`                 |  3.02 | hairlines, rules, ring strokes, control borders, and text 24pt and up |
- * | `divider` (ink 16%)                |  1.38 | decorative rules only, never a control boundary on its own            |
- * | `accentRamp[800]` on `[100]`       |  9.30 | the filled tag tones                                                  |
- * | `accentText` inside a gold border  |  5.97 | the outline tag tone: its border may be `accent`, its text may not    |
+ * Every ratio below is measured against the ground `#0a0c14`, and again
+ * against `surfaceRaised` `#1d2130`, which is the palest thing anything is
+ * ever drawn on and therefore the worst case.
+ */
+const green = '#3ee08f';
+const amber = '#e8a33d';
+const coral = '#ff7a5c';
+const red = '#ff6b6b';
+
+/**
+ * The colour role rule. The palette is kept exactly as the design drew it;
+ * what is defined here is where each value is allowed to appear.
  *
- * The practical effect: gold on small text is always `accentText`, never
- * `accent`, and anything a finger can press is bounded in `accent` or darker.
+ * | Value                      | Ground | Raised | Permitted on                                    |
+ * | -------------------------- | ------ | ------ | ----------------------------------------------- |
+ * | `text` `#f4f6fb`           |  18.06 |  14.80 | anything                                        |
+ * | `cyan` `#5fdcd0`           |  11.75 |   9.63 | anything, including the smallest mono labels    |
+ * | `green` `#3ee08f`          |  11.40 |   9.34 | anything                                        |
+ * | `amber` `#e8a33d`          |   9.05 |   7.42 | anything                                        |
+ * | `coral` `#ff7a5c`          |   7.61 |   6.24 | anything                                        |
+ * | `textMuted` (paper 62%)    |   7.20 |   5.90 | anything                                        |
+ * | `red` `#ff6b6b`            |   7.04 |   5.77 | anything                                        |
+ * | `violet` `#8f7bf5`         |   5.88 |   4.82 | anything                                        |
+ * | `textDim` (paper 42%)      |   3.83 |   3.14 | text at 20 points and above, and marks          |
+ * | `borderStrong` (paper 24%) |   2.01 |   1.65 | a card's edge, never a control's only boundary  |
+ * | `border` (paper 10%)       |   1.25 |   1.02 | decorative rules only, never a control boundary |
+ *
+ * Every hue clears 4.5:1 on both grounds, so a state may be said in colour
+ * here in a way the theme this replaced could not afford. `textDim` is the one
+ * value that does not, which is why it is capped at 20 points and marks.
+ *
+ * The practical effect: anything a finger can press is bounded in `cyan`,
+ * `violet`, or a filled surface, never in `border` alone; and the faintest
+ * paper tint is for rules, never for a sentence.
+ *
+ * `textOnAccent` is the ground itself, set on the gradient. Its worst point is
+ * the violet end, at 5.88.
  */
 export const colors = {
-  bg: '#f3f2f2',
-  surface: '#eae9e9',
-  text: ink,
-  /** Body text at reduced emphasis (`.text-muted`). 24 points and above only. */
-  textMuted,
-  /** Labels and meta rows. Passes at any size. */
-  textSubtle,
-  accent,
-  accent2: '#ac803e',
-  /** The only gold permitted on text below 24 points. */
-  accentText: accentRamp[700],
-  divider: withAlpha(ink, 16),
+  bg: ground,
+  /** A card, a field, a row group. */
+  surface,
+  /** A card sitting on a card, and the pressed state of a plain surface. */
+  surfaceRaised,
 
-  neutral,
-  accentRamp,
-  accent2Ramp,
+  text: paper,
+  /** Body copy at reduced emphasis. Passes at any size. */
+  textMuted: withAlpha(paper, 62),
+  /** The quietest step. 20 points and above only, or a decorative mark. */
+  textDim: withAlpha(paper, 42),
+  /** Words set on a filled cyan or gradient ground. */
+  textOnAccent: ground,
+
+  cyan,
+  violet,
+  green,
+  amber,
+  coral,
+  red,
+
+  /** Decorative rules and the faintest separations. Never a control boundary. */
+  border: withAlpha(paper, 10),
+  /** A card's visible edge. */
+  borderStrong: withAlpha(paper, 24),
 
   /**
-   * What a state means, said in a colour pair rather than in a hue. `text` is
-   * what the words are set in, `mark` what the rule, border, or dot beside
-   * them is drawn in. There is no red anywhere: a wrong day is not a failure,
-   * and a real error is carried by plain words and a rule.
+   * The three macros, each with its own hue, because the design draws them as
+   * three bars that have to be told apart at a glance rather than read.
    */
-  intents: {
-    /** The day's target exceeded. Calm, never alarming. */
-    over: { text: accentRamp[700], mark: accent },
-    /** Wants attention, but nothing has gone wrong. */
-    notice: { text: textSubtle, mark: accent },
-    /** A genuine error. Signalled by words and a rule, not by hue. */
-    failure: { text: ink, mark: accentRamp[700] },
+  macros: {
+    protein: green,
+    carbs: violet,
+    fat: coral,
   },
 
-  /** The CSS `:active` tints, resolved for React Native. */
+  /**
+   * What a state means, said as a pair: `text` is what the words are set in,
+   * `mark` the rule, border, dot, or bar beside them.
+   */
+  intents: {
+    /** The day's target exceeded. Worth seeing, never an alarm. */
+    over: { text: amber, mark: amber },
+    /** Wants attention, but nothing has gone wrong. */
+    notice: { text: amber, mark: amber },
+    /** A genuine error. */
+    failure: { text: red, mark: red },
+    /** Something went right, and saying so is the point. */
+    success: { text: green, mark: green },
+  },
+
+  /** The pressed tints, one per surface a press can land on. */
   pressed: {
-    accent: withAlpha(accent, 22),
-    neutral: withAlpha(ink, 14),
-    ghost: withAlpha(accent, 18),
+    accent: withAlpha(cyan, 18),
+    neutral: withAlpha(paper, 8),
+    ghost: withAlpha(cyan, 12),
+    surface: surfaceRaised,
+  },
+
+  /** A translucent wash of each hue, for a filled tag or a selected card. */
+  wash: {
+    cyan: withAlpha(cyan, 12),
+    violet: withAlpha(violet, 14),
+    green: withAlpha(green, 12),
+    amber: withAlpha(amber, 12),
+    coral: withAlpha(coral, 12),
+    red: withAlpha(red, 12),
+    neutral: withAlpha(paper, 6),
+  },
+
+  /** The indigo haze the design paints behind the top of every screen. */
+  glow: {
+    top: withAlpha(violet, 16),
+    fade: withAlpha(violet, 0),
   },
 } as const;
 
 /**
- * The design's scale is 4.6 apart rather than 4, and the odd numbers are
- * deliberate. Kept exactly as the CSS has them.
+ * Gradients, as the ordered colour stops React Native's linear gradient takes.
+ * Cyan to violet is the brand; nothing else runs a gradient.
  */
+export const gradients = {
+  /** Left to right. The primary action, and the level and progress bars. */
+  brand: [cyan, violet],
+  /** The same pair, reversed, for a ring that starts at the top. */
+  brandReversed: [violet, cyan],
+} as const;
+
+/** A plain 4 point grid. */
 export const space = {
-  1: 4.6,
-  2: 9.2,
-  3: 13.8,
-  4: 18.4,
-  6: 27.6,
-  8: 36.8,
+  1: 4,
+  2: 8,
+  3: 12,
+  4: 16,
+  6: 24,
+  8: 32,
 } as const;
 
 export const radii = {
-  sm: 2,
-  md: 4,
-  lg: 7,
-  /** `.tag` uses `calc(var(--radius-md) * 0.75)`. */
-  tag: 3,
+  sm: 8,
+  md: 12,
+  lg: 18,
+  /** The small pill on a tag or a chip. */
+  tag: 8,
   full: 999,
 } as const;
 
 /**
  * Font family names as `expo-font` registers them. Nothing should reference a
  * font by string anywhere else.
+ *
+ * Two faces. Outfit carries every heading, every number, and all body copy;
+ * JetBrains Mono carries the uppercase micro labels and the dense data lines
+ * ("0.25 KG/WK · -250 KCAL"), where a fixed advance width is what makes a
+ * column of figures line up.
  */
 export const fonts = {
-  headingRegular: 'CormorantGaramond_400Regular',
-  headingSemiBold: 'CormorantGaramond_600SemiBold',
-  bodyRegular: 'Lora_400Regular',
-  bodySemiBold: 'Lora_600SemiBold',
+  displayBold: 'Outfit_700Bold',
+  headingSemiBold: 'Outfit_600SemiBold',
+  headingMedium: 'Outfit_500Medium',
+  bodyRegular: 'Outfit_400Regular',
+  monoRegular: 'JetBrainsMono_400Regular',
+  monoBold: 'JetBrainsMono_700Bold',
 } as const;
 
 /**
- * The type scale from `classical.css`. `lineHeight` is absolute in React
- * Native, so the CSS multipliers are resolved against each size here.
- * Headings and every number use the heading face; body copy uses Lora.
+ * The type scale. `lineHeight` is absolute in React Native, so every
+ * multiplier is already resolved to points here.
  */
 export const type = {
-  h1: { fontFamily: fonts.headingSemiBold, fontSize: 42, lineHeight: 47, letterSpacing: -0.63 },
-  h2: { fontFamily: fonts.headingSemiBold, fontSize: 32, lineHeight: 36, letterSpacing: -0.48 },
-  h3: { fontFamily: fonts.headingSemiBold, fontSize: 25, lineHeight: 28, letterSpacing: -0.38 },
-  h4: { fontFamily: fonts.headingSemiBold, fontSize: 20, lineHeight: 22, letterSpacing: -0.3 },
-  h5: { fontFamily: fonts.headingSemiBold, fontSize: 16, lineHeight: 18, letterSpacing: -0.24 },
-  /** `h6` is the uppercase eyebrow, not a heading size. */
-  h6: { fontFamily: fonts.headingSemiBold, fontSize: 13, lineHeight: 15, letterSpacing: 1.04 },
+  /** The one figure a screen is built around: the ring's number, the target. */
+  display: { fontFamily: fonts.displayBold, fontSize: 56, lineHeight: 60, letterSpacing: -1.6 },
+  h1: { fontFamily: fonts.displayBold, fontSize: 30, lineHeight: 36, letterSpacing: -0.6 },
+  h2: { fontFamily: fonts.displayBold, fontSize: 25, lineHeight: 31, letterSpacing: -0.4 },
+  h3: { fontFamily: fonts.headingSemiBold, fontSize: 20, lineHeight: 26, letterSpacing: -0.3 },
+  h4: { fontFamily: fonts.headingSemiBold, fontSize: 17, lineHeight: 23, letterSpacing: -0.2 },
+  h5: { fontFamily: fonts.headingSemiBold, fontSize: 15, lineHeight: 20 },
+  /** `h6` is the uppercase mono eyebrow, not a heading size. */
+  h6: { fontFamily: fonts.monoBold, fontSize: 11, lineHeight: 15, letterSpacing: 1.6 },
   body: { fontFamily: fonts.bodyRegular, fontSize: 15, lineHeight: 23 },
-  bodySmall: { fontFamily: fonts.bodyRegular, fontSize: 14, lineHeight: 22 },
-  label: { fontFamily: fonts.bodyRegular, fontSize: 12, lineHeight: 18 },
-  caption: { fontFamily: fonts.bodyRegular, fontSize: 11, lineHeight: 17 },
-  /** Card kickers and tags: 10px, wide tracking, uppercase at the call site. */
-  kicker: { fontFamily: fonts.bodyRegular, fontSize: 10, lineHeight: 14, letterSpacing: 1 },
+  bodySmall: { fontFamily: fonts.bodyRegular, fontSize: 14, lineHeight: 21 },
+  label: { fontFamily: fonts.headingMedium, fontSize: 13, lineHeight: 18 },
+  caption: { fontFamily: fonts.bodyRegular, fontSize: 12, lineHeight: 18 },
+  /** The dense mono data line under a title: `08:20 · P14 C58 F9`. */
+  data: { fontFamily: fonts.monoRegular, fontSize: 11, lineHeight: 16, letterSpacing: 0.4 },
+  /** Section kickers and tags: 10 point mono, wide, uppercased at the call site. */
+  kicker: { fontFamily: fonts.monoBold, fontSize: 10, lineHeight: 14, letterSpacing: 1.5 },
 
   /**
    * The ceiling `scaleTypeStep` applies to the system font size setting. Past
@@ -189,13 +242,12 @@ export const type = {
 export type TypeVariant = Exclude<keyof typeof type, 'fontScaleCap'>;
 
 /**
- * Motion, ported from the canvas. `base` is its macro bars, `slow` its
- * calorie ring, and the two loops are its scan sweep and its typing pulse.
+ * Motion. `base` is the macro bars, `slow` the calorie ring, and the two loops
+ * are the scan sweep and the typing pulse.
  *
  * Easing is stored as the four cubic bezier control points rather than as a
- * built `Easing` object, so this module stays free of any React Native
- * import and the pure functions built on it can be tested without a phone.
- * The animating component builds the curve from these.
+ * built `Easing` object, so this module stays free of any React Native import
+ * and the pure functions built on it can be tested without a phone.
  */
 export const motion = {
   duration: {
@@ -216,30 +268,41 @@ export const motion = {
 } as const;
 
 /**
- * Elevation. React Native needs both the iOS shadow parts and Android's
- * `elevation`, so each step carries both.
+ * Elevation. On a ground this dark a drop shadow is nearly invisible, so the
+ * design lifts a card with a brighter surface and an edge instead, and keeps
+ * shadow for the two things that genuinely float: the primary action and the
+ * tab bar. React Native needs both the iOS parts and Android's `elevation`,
+ * so each step carries both.
  */
 export const shadows = {
   sm: {
-    shadowColor: shadowInk,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.14,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowColor: ground,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 2,
   },
   md: {
-    shadowColor: shadowInk,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowColor: ground,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 6,
   },
   lg: {
-    shadowColor: shadowInk,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.22,
+    shadowColor: ground,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.6,
     shadowRadius: 32,
-    elevation: 12,
+    elevation: 14,
+  },
+  /** The cyan bloom under the primary action and the snap button. */
+  glow: {
+    shadowColor: cyan,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 8,
   },
 } as const;
 
@@ -251,6 +314,7 @@ export const minTouchTarget = 44;
 
 export const theme = {
   colors,
+  gradients,
   space,
   radii,
   fonts,

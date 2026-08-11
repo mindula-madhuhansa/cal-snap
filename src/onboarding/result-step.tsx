@@ -6,8 +6,8 @@ import type { CompleteAnswers } from '@/data/local/onboarding';
 import { AppText } from '@/design-system/components/app-text';
 import { Button } from '@/design-system/components/button';
 import { Card } from '@/design-system/components/card';
-import { Divider } from '@/design-system/components/divider';
 import { NumberText } from '@/design-system/components/number-text';
+import { ProgressRing } from '@/design-system/components/progress-ring';
 import { colors, space } from '@/design-system/theme';
 
 import { detailSentences, floorSentence, targetSentence } from './result-sentences';
@@ -18,6 +18,12 @@ import { detailSentences, floorSentence, targetSentence } from './result-sentenc
  * The number shown here is the number that will be stored, because both come
  * from the same pure function over the same answers. Nothing is computed twice
  * with a chance of disagreeing.
+ *
+ * The design draws a macro breakdown under this number. It is not here, and
+ * that is deliberate: nothing in the app computes a protein, carbohydrate and
+ * fat split yet, and three invented figures on the screen that introduces
+ * somebody to their daily target is exactly the thing `AGENTS.md` forbids.
+ * They arrive when a feature computes them.
  */
 
 export type ResultStepProps = {
@@ -25,6 +31,16 @@ export type ResultStepProps = {
   readonly onFinish: () => void;
   readonly busy: boolean;
 };
+
+/** The ring is the whole budget, so it is drawn closed. */
+const WHOLE = 1;
+
+/**
+ * How many of the detail sentences are shown up front, in the card. The rest
+ * stay behind the toggle, so the card is a summary rather than a wall and
+ * nothing is said twice on one screen.
+ */
+const DETAIL_SUMMARY_LINES = 2;
 
 export const ResultStep = ({ answers, onFinish, busy }: ResultStepProps) => {
   const [showDetail, setShowDetail] = useState(false);
@@ -44,7 +60,11 @@ export const ResultStep = ({ answers, onFinish, busy }: ResultStepProps) => {
 
   return (
     <View style={styles.stack}>
-      <Card>
+      <View style={styles.hero}>
+        <AppText variant="kicker" uppercase color={colors.cyan}>
+          Your daily number
+        </AppText>
+
         {/*
           AC-15. Announced as the sentence rather than drawn as a large numeral
           a screen reader would read out of context, so the number arrives with
@@ -55,34 +75,47 @@ export const ResultStep = ({ answers, onFinish, busy }: ResultStepProps) => {
           accessibilityRole="summary"
           accessibilityLabel={floored === undefined ? headline : `${headline} ${floored}`}
           testID="onboarding-result">
-          {/*
-            `estimated` is not decoration. AC-9 says the number is never
-            presented as fact, and this is the design system's own way of
-            saying so, in the figure and in what a screen reader reads out.
-          */}
-          <NumberText
-            value={String(target.calories)}
-            unit="cal a day"
-            estimated
-            size="h1"
-            testID="onboarding-result-calories"
-          />
-
-          <View style={styles.sentence}>
-            <AppText variant="body">{headline}</AppText>
-          </View>
-
-          {floored === undefined ? undefined : (
-            <View style={styles.sentence}>
-              <AppText variant="body" color={colors.textSubtle} testID="onboarding-result-floored">
-                {floored}
-              </AppText>
-            </View>
-          )}
+          <ProgressRing progress={WHOLE}>
+            {/*
+              `estimated` is not decoration. AC-9 says the number is never
+              presented as fact, and this is the design system's own way of
+              saying so, in the figure and in what a screen reader reads out.
+            */}
+            <NumberText
+              value={String(target.calories)}
+              unit="kcal a day"
+              estimated
+              size="display"
+              layout="stacked"
+              testID="onboarding-result-calories"
+            />
+          </ProgressRing>
         </View>
-      </Card>
 
-      <Divider />
+        <AppText variant="h1" heading align="center">
+          {headline}
+        </AppText>
+
+        {floored === undefined ? undefined : (
+          <AppText
+            variant="body"
+            color={colors.amber}
+            align="center"
+            testID="onboarding-result-floored">
+            {floored}
+          </AppText>
+        )}
+      </View>
+
+      <Card kicker="The maths, plainly">
+        {detailSentences(target)
+          .slice(0, DETAIL_SUMMARY_LINES)
+          .map((line) => (
+            <AppText key={line} variant="bodySmall" color={colors.textMuted}>
+              {line}
+            </AppText>
+          ))}
+      </Card>
 
       <Button
         label={showDetail ? 'Hide how this was worked out' : 'How was this worked out?'}
@@ -100,16 +133,23 @@ export const ResultStep = ({ answers, onFinish, busy }: ResultStepProps) => {
 
       {showDetail ? (
         <View style={styles.detail} testID="onboarding-result-detail">
-          {detailSentences(target).map((line) => (
-            <AppText key={line} variant="caption" color={colors.textSubtle}>
-              {line}
-            </AppText>
-          ))}
+          {detailSentences(target)
+            .slice(DETAIL_SUMMARY_LINES)
+            .map((line) => (
+              <AppText key={line} variant="caption" color={colors.textMuted}>
+                {line}
+              </AppText>
+            ))}
         </View>
       ) : undefined}
 
+      <AppText variant="caption" color={colors.textDim} align="center">
+        It’s an estimate from a handful of answers, not a prescription. Tune it any time in
+        Settings.
+      </AppText>
+
       <Button
-        label="Start using CalSnap"
+        label="Start day one"
         size="block"
         fullWidth
         disabled={busy}
@@ -123,6 +163,6 @@ export const ResultStep = ({ answers, onFinish, busy }: ResultStepProps) => {
 
 const styles = StyleSheet.create({
   stack: { gap: space[4] },
-  sentence: { marginTop: space[3] },
+  hero: { alignItems: 'center', gap: space[3] },
   detail: { gap: space[2] },
 });

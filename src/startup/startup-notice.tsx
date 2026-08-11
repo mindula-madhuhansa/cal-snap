@@ -45,10 +45,10 @@ const styles = StyleSheet.create({
   detail: {
     fontSize: type.body.fontSize,
     lineHeight: type.body.lineHeight,
-    // `textSubtle` (5.79), not `textMuted` (3.63): this is 15 point body, so
-    // it owes 4.5:1, and of all the screens in the app this is the one that
-    // has to stay readable (spec 0003, AC-2).
-    color: colors.textSubtle,
+    // `textMuted` (7.20 on the ground), not `textDim` (3.83): this is 15
+    // point body, so it owes 4.5:1, and of all the screens in the app this is
+    // the one that has to stay readable.
+    color: colors.textMuted,
     textAlign: 'center',
   },
 });

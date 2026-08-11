@@ -5,32 +5,60 @@ import { colors, radii, shadows, space } from '../theme';
 import { AppText } from './app-text';
 
 /**
- * A bordered block (spec 0003, AC-5).
+ * A filled block.
  *
- * The design carries grouping with a hairline and a transparent ground rather
- * than with a raised white panel, so `elevation` is here for the rare case
- * that needs lifting off the page and stays `none` almost everywhere.
+ * The design carries grouping with a raised surface and a soft edge rather
+ * than with a hairline on bare ground, so a card is a real panel here. `tone`
+ * picks which ground it sits on; `elevation` is for the rare card that has to
+ * float above the rest.
  */
 
 export type CardElevation = 'none' | 'sm' | 'md' | 'lg';
 
+/**
+ * `surface` is the ordinary card. `raised` is a card inside a card. `outline`
+ * draws an edge over the ground with no fill, for a block that groups without
+ * claiming weight.
+ */
+export type CardTone = 'surface' | 'raised' | 'outline';
+
 export type CardProps = {
   readonly children: ReactNode;
-  /** The small gold eyebrow above the title. */
+  /** The small uppercase mono eyebrow above the title. */
   readonly kicker?: string;
   readonly title?: string;
+  readonly tone?: CardTone;
   readonly elevation?: CardElevation;
+  /** Runs edge to edge inside the card, for a card that holds its own rows. */
+  readonly flush?: boolean;
   readonly testID?: string;
 };
 
-export const Card = ({ children, kicker, title, elevation = 'none', testID }: CardProps) => (
+const toneStyles: Readonly<Record<CardTone, { backgroundColor: string; borderColor: string }>> = {
+  surface: { backgroundColor: colors.surface, borderColor: colors.border },
+  raised: { backgroundColor: colors.surfaceRaised, borderColor: colors.borderStrong },
+  outline: { backgroundColor: 'transparent', borderColor: colors.borderStrong },
+};
+
+export const Card = ({
+  children,
+  kicker,
+  title,
+  tone = 'surface',
+  elevation = 'none',
+  flush = false,
+  testID,
+}: CardProps) => (
   <View
-    style={[styles.card, elevation === 'none' ? undefined : shadows[elevation]]}
+    style={[
+      styles.card,
+      toneStyles[tone],
+      flush ? styles.flush : undefined,
+      elevation === 'none' ? undefined : shadows[elevation],
+    ]}
     testID={testID}>
     {kicker === undefined ? undefined : (
-      // 10 point gold, so it is `accentText` rather than `accent`: the
-      // brighter gold does not clear the floor at this size.
-      <AppText variant="kicker" color={colors.accentText} uppercase>
+      <AppText variant="kicker" color={colors.textDim} uppercase>
         {kicker}
       </AppText>
     )}
@@ -45,12 +73,13 @@ export const Card = ({ children, kicker, title, elevation = 'none', testID }: Ca
 
 const styles = StyleSheet.create({
   card: {
-    // `.card`: transparent ground, hairline border, `--space-3` padding.
     gap: space[2],
-    padding: space[3],
-    borderRadius: radii.md,
+    padding: space[4],
+    borderRadius: radii.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.divider,
-    backgroundColor: 'transparent',
+  },
+  flush: {
+    paddingVertical: space[1],
+    paddingHorizontal: space[4],
   },
 });

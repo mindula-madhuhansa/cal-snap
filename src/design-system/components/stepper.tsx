@@ -1,29 +1,22 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { haptics } from '../haptics';
-import { withMinTouchTarget } from '../min-touch-target';
 import { colors, radii, space } from '../theme';
 import { AppText } from './app-text';
 import { DISABLED_OPACITY } from './button-variant';
 import { Icon } from './icon';
 
 /**
- * Minus and plus around a value (spec 0003, AC-3, AC-5, AC-11).
+ * Minus and plus around a value.
  *
- * This is the component the touch target rule was written for. The design
- * draws the two buttons small, and they stay small; `withMinTouchTarget` grows
- * what a finger can hit without changing what the eye sees.
+ * One strip: two square buttons on the surface colour with the figure held
+ * between them, matching the portion control the design draws. Each button is
+ * a full touch target in its own right, so nothing here needs hit slop, and
+ * the gap between them is what stops a tap landing on the wrong one.
  */
 
-/**
- * The canvas draws these 30 by 28. Snapped to the space scale, which is what
- * keeps the system free of loose numbers, they come out a fraction wider and
- * within half a point of the drawing.
- */
-const BUTTON_WIDTH = space[6] + space[1];
-const BUTTON_HEIGHT = space[6];
-
-const hitSlop = withMinTouchTarget(BUTTON_WIDTH, BUTTON_HEIGHT);
+/** The two buttons, square and on the space scale. */
+const BUTTON_SIZE = space[8] + space[3];
 
 export type StepperProps = {
   readonly value: number;
@@ -86,7 +79,7 @@ export const Stepper = ({
         testID={testID === undefined ? undefined : `${testID}-decrement`}
       />
       <View style={styles.value}>
-        <AppText variant="h5" align="center">
+        <AppText variant="h3" align="center" numberOfLines={1}>
           {text}
         </AppText>
       </View>
@@ -111,7 +104,6 @@ const StepButton = ({ icon, disabled, onPress, testID }: StepButtonProps) => (
   <Pressable
     onPress={onPress}
     disabled={disabled}
-    hitSlop={hitSlop}
     // The two buttons are the parent's accessibility actions, so a screen
     // reader should not also meet them as separate elements.
     accessibilityElementsHidden
@@ -122,7 +114,7 @@ const StepButton = ({ icon, disabled, onPress, testID }: StepButtonProps) => (
       { opacity: disabled ? DISABLED_OPACITY : 1 },
       pressed && !disabled ? { backgroundColor: colors.pressed.accent } : undefined,
     ]}>
-    <Icon name={icon} size="md" color={colors.accentText} />
+    <Icon name={icon} size="md" color={colors.cyan} />
   </Pressable>
 );
 
@@ -130,20 +122,22 @@ const styles = StyleSheet.create({
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    // The two grown hit areas meet exactly at the value between them, so this
-    // gap is what stops a tap landing on the wrong one.
     gap: space[2],
+    padding: space[1],
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
   },
   button: {
-    width: BUTTON_WIDTH,
-    height: BUTTON_HEIGHT,
+    width: BUTTON_SIZE,
+    height: BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.accent,
-    borderRadius: radii.md,
+    borderRadius: radii.sm,
+    backgroundColor: colors.wash.cyan,
   },
   value: {
-    minWidth: space[8],
+    flex: 1,
   },
 });

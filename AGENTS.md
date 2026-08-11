@@ -6,8 +6,8 @@ An AI calorie counter for everyday people losing weight: snap a meal, get its nu
 
 - **Language / Runtime**: TypeScript strict, Node 22, React 19.2 on React Native 0.85
 - **Framework**: Expo SDK 56 (New Architecture), with Expo Router for file based routing
-- **Key dependencies**: `expo-sqlite` (the local first store), `@clerk/expo` (accounts and sessions) with `expo-secure-store`, `@supabase/supabase-js` (the sync client, always on a Clerk token), `expo-crypto` (device randomness for identifiers), `zod` (configuration validation), `@expo-google-fonts` (Cormorant Garamond, Lora), `react-native-reanimated`, `@expo/vector-icons` (the Feather set, behind the design system's `Icon`), `expo-haptics` (the shared feedback helper)
-- **Styling**: a typed theme module plus React Native `StyleSheet`. No styling library, one light theme, no web target
+- **Key dependencies**: `expo-sqlite` (the local first store), `@clerk/expo` (accounts and sessions) with `expo-secure-store`, `@supabase/supabase-js` (the sync client, always on a Clerk token), `expo-crypto` (device randomness for identifiers), `zod` (configuration validation), `@expo-google-fonts` (Outfit, JetBrains Mono), `expo-linear-gradient` (the brand gradient, behind `Button`, `ProgressBar` and `AppMark`), `react-native-svg` (the calorie ring), `react-native-reanimated`, `@expo/vector-icons` (the Feather set, behind the design system's `Icon`), `expo-haptics` (the shared feedback helper)
+- **Styling**: a typed theme module plus React Native `StyleSheet`. No styling library, one dark theme, no web target
 - **Package manager**: npm
 - **Auth**: Clerk, not Supabase Auth. Spec 0004 reversed spec 0001's original row, so every `user_id` is `text` holding the Clerk identifier and every Postgres policy reads `auth.jwt() ->> 'sub'`. `auth.uid()` returns null here and would silently match nothing; never write it. Conventions live in [src/account/AGENTS.md](src/account/AGENTS.md).
 - **Wired and confirmed on a device**: Supabase Postgres is live (project `Cal Snap`), with the spec 0002 schema applied, the spec 0006 `target_overrides` table applied, and row level security on every table. Clerk is registered with Supabase as a **third party auth provider**, which is what puts `role: authenticated` on the session token; every policy reads `auth.jwt() ->> 'sub'`, so without that registration Supabase refuses every request. Sign up, sign in, and sync were confirmed end to end on a development build on 11 August 2026: a real account reached Clerk and its rows reached Postgres. Set this up once per Clerk instance, so **production needs it again** before release. Do **not** use the old Clerk "supabase" JWT template; Clerk deprecated it on 1 April 2025 and the native provider replaces it.
@@ -109,7 +109,7 @@ MCP servers: Supabase (connected; the live project is `Cal Snap`).
 - [src/app/AGENTS.md](src/app/AGENTS.md): the routes, the startup gates, and Expo Router's default export exception.
 - [src/data/AGENTS.md](src/data/AGENTS.md): the one schema declaration, the two generators, the pure calculations, and the data access layer.
 - [src/db/AGENTS.md](src/db/AGENTS.md): the local SQLite store and the migration rules.
-- [src/design-system/AGENTS.md](src/design-system/AGENTS.md): the Classical theme tokens and the fonts.
+- [src/design-system/AGENTS.md](src/design-system/AGENTS.md): the Nocturne theme tokens, the two fonts, and the component set.
 - [src/onboarding/AGENTS.md](src/onboarding/AGENTS.md): the first run setup flow, the result and goal screens, and the sentences they say.
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._
