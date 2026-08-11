@@ -76,8 +76,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // model). App code never touches it directly, but the native module has
     // to be in the build or `@clerk/expo/token-cache` cannot resolve.
     'expo-secure-store',
-    // Snap a meal (spec 0007). All three are native code, so this feature needs
-    // a **new development build**; a client built before it will not run.
+    // Snap a meal (spec 0007). Three packages are native code, so this feature
+    // needs a **new development build**; a client built before it will not run.
+    //
+    // Only two are listed here. `expo-image-manipulator` ships no
+    // `app.plugin.js`, so naming it makes Expo load the package's own entry
+    // point as if it were a plugin, which throws before the config is even
+    // read. It is autolinked from its Expo module definition and reaches the
+    // build without an entry, which is what a plugin free native module does.
     //
     // The usage descriptions are not optional polish: a missing one is an App
     // Store rejection rather than a runtime error, and on both platforms it is
@@ -98,7 +104,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           'CalSnap opens your photo library so you can scan a meal you already photographed.',
       },
     ],
-    'expo-image-manipulator',
     [
       'expo-splash-screen',
       {
